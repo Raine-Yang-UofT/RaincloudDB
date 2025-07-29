@@ -1,4 +1,5 @@
 use raincloud_db::storage::page::Page;
+use raincloud_db::types::MAX_SLOTS;
 
 #[test]
 fn test_insert_and_get_record() {
@@ -91,10 +92,8 @@ fn test_multiple_insertions_and_deletions() {
     }
 
     let result = Page::deserialize(&page.serialize()).expect("Final deserialize failed");
-    let total_valid = result
-        .slots()
-        .iter()
-        .filter(|slot| slot.is_some() && slot.as_ref().unwrap().is_valid())
+    let total_valid = (0..MAX_SLOTS)
+        .filter(|&i| result.get_slot_validity(i))
         .count();
 
     assert_eq!(total_valid, 5, "Expected 5 valid records after deletions and insertions");

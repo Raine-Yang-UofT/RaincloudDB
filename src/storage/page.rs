@@ -1,11 +1,12 @@
 use crate::types::{PAGE_SIZE, MAX_SLOTS, PageId, SlotId};
 
-const SLOT_SIZE: usize = 5;
-const PAGE_ID_SIZE: usize = size_of::<u32>();
-const SLOT_ID_SIZE: usize = size_of::<u16>();
+const SLOT_SIZE: usize = 4;
+const PAGE_ID_SIZE: usize = size_of::<PageId>();
+const SLOT_ID_SIZE: usize = size_of::<SlotId>();
 const FREE_START_SIZE: usize = size_of::<u16>();
+const VALID_SLOT_BITMAP_SIZE: usize = 32;
 const fn get_page_header_size() -> usize {
-    PAGE_ID_SIZE + SLOT_ID_SIZE + FREE_START_SIZE + MAX_SLOTS * SLOT_SIZE
+    PAGE_ID_SIZE + SLOT_ID_SIZE + FREE_START_SIZE + VALID_SLOT_BITMAP_SIZE + MAX_SLOTS * SLOT_SIZE
 }
 const PAYLOAD_SIZE: usize = PAGE_SIZE - get_page_header_size();
 
@@ -13,20 +14,16 @@ const PAYLOAD_SIZE: usize = PAGE_SIZE - get_page_header_size();
 pub struct Slot {
     offset: u16, // record offset
     length: u16, // record length
-    is_valid: bool, // if the data pointed by the slot has been deleted
-}
-
-impl Slot {
-    pub fn is_valid(&self) -> bool { self.is_valid }
 }
 
 #[derive(Copy, Clone, Debug)]
 pub struct Page {
     pub id: PageId,
-    data: [u8; PAYLOAD_SIZE], // payload data, excluding page header and slot array
-    slots: [Option<Slot>; MAX_SLOTS], // page slot array
     next_slot: SlotId, // next available slot index, grow from top to bottom
     free_start: u16, // offset of free space, grow from bottom to top
+    slots: [Option<Slot>; MAX_SLOTS], // page slot array
+    valid_slots: [u8; VALID_SLOT_BITMAP_SIZE], // bitmap to represent whether the slot value is valid (not deleted)
+    data: [u8; PAYLOAD_SIZE], // payload data, excluding page header and slot array
 }
 
 impl Page {
@@ -38,17 +35,15 @@ impl Page {
             data: [0u8; PAYLOAD_SIZE],
             slots: [None; MAX_SLOTS],
             next_slot: 0,
+            valid_slots: [0; VALID_SLOT_BITMAP_SIZE],
             free_start: PAYLOAD_SIZE as u16,
         }
     }
 
-    // display slot array for testing purpose
-    pub fn slots(&self) -> &[Option<Slot>; MAX_SLOTS] { &self.slots }
-
     // serialize page
     /*
     Layout:
-    [id: 4][next_slot: 2][free_start: 2][slot array: 5 * MAX_SLOTS][data]
+    [id: 4][next_slot: 2][free_start: 2][valid_slots: 32][slot array: 4 * MAX_SLOTS][data]
      */
     pub fn serialize(&self) -> [u8; PAGE_SIZE] {
         let mut buf = [0u8; PAGE_SIZE];
@@ -61,6 +56,8 @@ impl Page {
         cursor += SLOT_ID_SIZE;
         buf[cursor..cursor + FREE_START_SIZE].copy_from_slice(&self.free_start.to_le_bytes());
         cursor += FREE_START_SIZE;
+        buf[cursor..cursor + VALID_SLOT_BITMAP_SIZE].copy_from_slice(&self.valid_slots);
+        cursor += VALID_SLOT_BITMAP_SIZE;
 
         // serialize slot array
         for slot in &self.slots {
@@ -69,11 +66,9 @@ impl Page {
                 cursor += size_of::<u16>();
                 buf[cursor..cursor + size_of::<u16>()].copy_from_slice(&slot.length.to_le_bytes());
                 cursor += size_of::<u16>();
-                buf[cursor] = slot.is_valid as u8;
-                cursor += 1;
             } else {
-                buf[cursor..cursor + 5].fill(0);
-                cursor += 5;
+                buf[cursor..cursor + SLOT_SIZE].fill(0);
+                cursor += SLOT_SIZE;
             }
         }
 
@@ -93,6 +88,8 @@ impl Page {
         cursor += SLOT_ID_SIZE;
         let free_start = u16::from_le_bytes(buf[cursor..cursor + FREE_START_SIZE].try_into().ok()?);
         cursor += FREE_START_SIZE;
+        let valid_slots = buf[cursor..cursor + VALID_SLOT_BITMAP_SIZE].try_into().ok()?;
+        cursor += VALID_SLOT_BITMAP_SIZE;
 
         // deserialize slot array
         let mut slots = [None; MAX_SLOTS];
@@ -101,14 +98,11 @@ impl Page {
             cursor += size_of::<u16>();
             let length = u16::from_le_bytes(buf[cursor..cursor + size_of::<u16>()].try_into().ok()?);
             cursor += size_of::<u16>();
-            let is_valid = buf[cursor] != 0;
-            cursor += 1;
 
-            if !(offset == 0 && length == 0 && !is_valid) {
+            if !(offset == 0 && length == 0) {
                 slots[i] = Some(Slot {
                     offset,
                     length,
-                    is_valid,
                 });
             }
         }
@@ -119,11 +113,30 @@ impl Page {
 
         Some(Page {
             id,
-            data,
-            slots,
             next_slot,
             free_start,
+            valid_slots,
+            data,
+            slots,
         })
+    }
+
+    pub fn set_slot_validity(&mut self, index: usize, value: bool) {
+        assert!(index < 255, "Index out of bounds");
+        let byte_index = index / 8;
+        let bit_index = index % 8;
+        if value {
+            self.valid_slots[byte_index] |= 1 << bit_index;
+        } else {
+            self.valid_slots[byte_index] &= !(1 << bit_index);
+        }
+    }
+
+    pub fn get_slot_validity(&self, index: usize) -> bool {
+        assert!(index < 255, "Index out of bounds");
+        let byte_index = index / 8;
+        let bit_index = index % 8;
+        (self.valid_slots[byte_index] >> bit_index) & 1 != 0
     }
 
     // insert record to page
@@ -135,7 +148,7 @@ impl Page {
 
         // check for available page space
         let record_len = record.len() as u16;
-        if record_len as u16 > self.free_start {
+        if record_len > self.free_start {
             return None;
         }
 
@@ -148,8 +161,8 @@ impl Page {
         let slot = Slot {
             offset,
             length: record_len,
-            is_valid: true,
         };
+        self.set_slot_validity(self.next_slot as usize, true);
         self.slots[self.next_slot as usize] = Some(slot);
         self.next_slot += 1;
 
@@ -158,10 +171,13 @@ impl Page {
 
     // get a record by SlotId
     pub fn get_record(&self, slot_id: SlotId) -> Option<&[u8]> {
+        // return None if slot is invalid
+        if !self.get_slot_validity(slot_id as usize) {
+            return None;
+        }
+
+        // retrieve data by slot offset and length
         if let Some(slot) = self.slots.get(slot_id as usize)?.as_ref() {
-            if !slot.is_valid {
-                return None;
-            }
             let start = slot.offset as usize;
             let end = start + slot.length as usize;
             Some(&self.data[start..end])
@@ -172,16 +188,12 @@ impl Page {
 
     // mark a record as deleted
     pub fn delete_record(&mut self, slot_id: SlotId) -> bool {
-        if let Some(slot) = self.slots.get_mut(slot_id as usize) {
-            if let Some(s) = slot {
-                s.is_valid = false;
-                return true;
-            }
+        if self.get_slot_validity(slot_id as usize) {
+            self.set_slot_validity(slot_id as usize, false);
+            return true;
         }
         false
     }
-
-
 
     // TODO: perform page compaction
 }
@@ -278,10 +290,11 @@ mod tests {
     fn test_serialize_deserialize() {
         let mut page = Page {
             id: 42,
+            next_slot: 0,
+            free_start: 800,
+            valid_slots: [0u8; VALID_SLOT_BITMAP_SIZE],
             data: [0u8; PAYLOAD_SIZE],
             slots: [None; MAX_SLOTS],
-            next_slot: 0,
-            free_start: 800, // arbitrary
         };
 
         let content = b"hello world!";
@@ -300,7 +313,7 @@ mod tests {
         let deserialized_slot = deserialized.slots[0].unwrap();
         assert_eq!(original_slot.offset, deserialized_slot.offset);
         assert_eq!(original_slot.length, deserialized_slot.length);
-        assert_eq!(original_slot.is_valid, deserialized_slot.is_valid);
+        assert_eq!(page.get_slot_validity(0), deserialized.get_slot_validity(0));
 
         // Check payload
         let recovered = page.get_record(slot_id.unwrap()).expect("should exist");
@@ -311,10 +324,11 @@ mod tests {
     fn test_serialize_with_empty_slots() {
         let page = Page {
             id: 99,
-            data: [0u8; PAYLOAD_SIZE],
-            slots: [None; MAX_SLOTS],
             next_slot: 42,
             free_start: 1000,
+            valid_slots: [0u8; VALID_SLOT_BITMAP_SIZE],
+            data: [0u8; PAYLOAD_SIZE],
+            slots: [None; MAX_SLOTS],
         };
 
         let serialized = page.serialize();
@@ -323,8 +337,9 @@ mod tests {
         assert_eq!(deserialized.id, 99);
         assert_eq!(deserialized.free_start, 1000);
         assert_eq!(deserialized.next_slot, 42);
-        for slot in deserialized.slots.iter() {
+        for (i, slot) in deserialized.slots.iter().enumerate() {
             assert!(slot.is_none());
+            assert!(!page.get_slot_validity(i))
         }
     }
 }
