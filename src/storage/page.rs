@@ -1,32 +1,35 @@
 use crate::types::{PAGE_SIZE, PageId};
 
-pub trait Page {
+pub trait Page: Send + Sync {
 
-    // create a new empty page with given ID
+    /// Create a new empty page with given ID
     fn new(id: PageId) -> Self;
 
-    // serialize page to byte array
+    /// Serialize page to byte array
     fn serialize(&self) -> [u8; PAGE_SIZE];
 
-    // deserialize page from byte array
+    /// Deserialize page from byte array
     fn deserialize(buf: &[u8; PAGE_SIZE]) -> Option<Self> where Self: Sized;
 
-    // return page id
+    /// Return page id
     fn get_id(&self) -> PageId;
 
-    // return the amount of free space in page
-    // unreclaimed deleted space is not counted towards free space
+    /// Return the amount of free space in page
+    /// Unreclaimed deleted space is not counted towards free space
     fn get_free_space(&self) -> usize;
 
-    // return whether page is empty
+    /// Return whether page is empty
     fn is_empty(&self) -> bool;
 
-    // clear the page
+    /// Clear the page
     fn clear(&mut self);
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum PageError {
-    InvalidSlot,
-    RecordSizeChanged
+    InvalidPage,         // the page id is invalid
+    InvalidSlot,         // the slot id is invalid
+    RecordSizeChanged,   // the record size is updated to a different size
+    PageLatched,         // the page is used by other connections
+    PageAlreadyUnpinned,        // an unpinned page is attempted to be unpin again
 }

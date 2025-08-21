@@ -72,10 +72,8 @@ impl Page for DataPage {
         buf
     }
 
-    /*
-    Layout:
-    [id: 4][next_slot: 2][free_start: 2][valid_slots: 32][slot array: 4 * MAX_SLOTS][data]
-     */
+    /// Layout:
+    /// [id: 4][next_slot: 2][free_start: 2][valid_slots: 32][slot array: 4 * MAX_SLOTS][data]
     fn deserialize(buf: &[u8; PAGE_SIZE]) -> Option<Self> {
         let mut cursor = 0;
 
@@ -142,7 +140,9 @@ impl Page for DataPage {
 
 impl DataPage {
 
-    pub fn set_slot_validity(&mut self, index: usize, value: bool) {
+    /// Note: set_slot_validity should be private since every update
+    /// on slot array should be from page API
+    fn set_slot_validity(&mut self, index: usize, value: bool) {
         assert!(index < 255, "Index out of bounds");
         let byte_index = index / 8;
         let bit_index = index % 8;
@@ -153,6 +153,7 @@ impl DataPage {
         }
     }
 
+    /// Check if a slot in slot array is empty
     pub fn get_slot_validity(&self, index: usize) -> bool {
         assert!(index < 255, "Index out of bounds");
         let byte_index = index / 8;
@@ -160,7 +161,7 @@ impl DataPage {
         (self.valid_slots[byte_index] >> bit_index) & 1 != 0
     }
 
-    // insert record to page
+    /// Insert record to page
     pub fn insert_record(&mut self, record: &[u8]) -> Option<SlotId> {
         // check for available slot
         if self.next_slot as usize >= MAX_SLOTS {
@@ -190,7 +191,7 @@ impl DataPage {
         Some(self.next_slot - 1)
     }
 
-    // get a record by SlotId
+    /// Get a record by SlotId
     pub fn get_record(&self, slot_id: SlotId) -> Option<&[u8]> {
         // return None if slot is invalid
         if !self.get_slot_validity(slot_id as usize) {
@@ -207,7 +208,7 @@ impl DataPage {
         }
     }
 
-    // update record
+    /// Update record
     pub fn update_record(&mut self, slot_id: SlotId, new_record: &[u8]) -> Result<(), PageError> {
         // check if record exists
         if !self.get_slot_validity(slot_id as usize) {
@@ -229,7 +230,7 @@ impl DataPage {
         }
     }
 
-    // mark a record as deleted
+    /// Mark a record as deleted
     pub fn delete_record(&mut self, slot_id: SlotId) -> Result<(), PageError> {
         if self.get_slot_validity(slot_id as usize) {
             self.set_slot_validity(slot_id as usize, false);
@@ -238,7 +239,7 @@ impl DataPage {
         Err(PageError::InvalidSlot)
     }
 
-    // iterate through records on page
+    /// Iterate through records on page
     pub fn iter_record(&self) -> impl Iterator<Item = (SlotId, &[u8])> {
         self.slots.iter().enumerate()
             .filter(move |(i, _)| self.get_slot_validity(*i))
