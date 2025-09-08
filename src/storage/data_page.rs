@@ -40,6 +40,9 @@ impl Page for DataPage {
         }
     }
 
+
+    /// Layout:
+    /// [id: 4][next_slot: 2][free_start: 2][valid_slots: 32][slot array: 4 * MAX_SLOTS][data]
     fn serialize(&self) -> [u8; PAGE_SIZE] {
         let mut buf = [0u8; PAGE_SIZE];
         let mut cursor = 0;
@@ -72,8 +75,6 @@ impl Page for DataPage {
         buf
     }
 
-    /// Layout:
-    /// [id: 4][next_slot: 2][free_start: 2][valid_slots: 32][slot array: 4 * MAX_SLOTS][data]
     fn deserialize(buf: &[u8; PAGE_SIZE]) -> Option<Self> {
         let mut cursor = 0;
 
@@ -117,14 +118,17 @@ impl Page for DataPage {
         })
     }
 
+    #[inline]
     fn get_id(&self) -> PageId {
         self.id
     }
 
+    #[inline]
     fn get_free_space(&self) -> usize {
         self.free_start as usize
     }
 
+    #[inline]
     fn is_empty(&self) -> bool {
         self.next_slot == 0
     }
