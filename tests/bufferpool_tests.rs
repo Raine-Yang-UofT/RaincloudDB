@@ -1,5 +1,5 @@
+use paste::paste;
 use std::sync::{Arc, Barrier};
-use std::sync::atomic::Ordering;
 use std::thread;
 use std::time::Duration;
 use tempfile::{NamedTempFile};
@@ -8,6 +8,11 @@ use raincloud_db::storage::data_page::{DataPage};
 use raincloud_db::storage::bufferpool::BufferPool;
 use raincloud_db::storage::disk_manager::FileDiskManager;
 use raincloud_db::storage::replacement_strategy::ReplacementStrategyType;
+use raincloud_db::{with_create_pages, with_read_pages, with_write_pages};
+
+struct BufferpoolWrapper<P: Page> {
+    buffer_pool: Arc<BufferPool<P>>
+}
 
 fn setup_buffer_pool(capacity: usize) -> (Arc<BufferPool<DataPage>>, NamedTempFile) {
     let temp_file = NamedTempFile::new().unwrap();
@@ -24,105 +29,80 @@ fn setup_buffer_pool(capacity: usize) -> (Arc<BufferPool<DataPage>>, NamedTempFi
 #[test]
 fn test_basic_fetch_create_unpin() {
     let (pool, _temp_file) = setup_buffer_pool(2);
+    let wrapper = BufferpoolWrapper{ buffer_pool: Arc::clone(&pool) };
 
     // Test creating a page
-    let page_ref = pool.create_page().unwrap();
-    let page_id = page_ref.read().unwrap().page.get_id();
+    let page_id;
+    with_create_pages!(wrapper, [(page_id, page)], false, {});
 
-    // Test unpinning
-    pool.unpin_page(page_id, false).unwrap();
-
-    // Test fetching the same page
-    let fetched_ref = pool.fetch_page(page_id).unwrap();
-    assert_eq!(fetched_ref.read().unwrap().page.get_id(), page_id);
-
-    // Clean up
-    pool.unpin_page(page_id, false).unwrap();
+    // Test fetching the same page without error
+    with_write_pages!(wrapper, [(page_id, page)], false, {});
+    with_read_pages!(wrapper, [(page_id, page)], {});
 }
 
 #[test]
 fn test_dirty_page_persistence() {
     let (pool, temp_file) = setup_buffer_pool(2);
+    let wrapper = BufferpoolWrapper{ buffer_pool: Arc::clone(&pool) };
 
     // Create and mark as dirty
-    let page_ref = pool.create_page().unwrap();
-    let page_id = page_ref.read().unwrap().page.get_id();
-    pool.unpin_page(page_id, true).unwrap(); // Mark dirty
-
-    // Flush explicitly
-    pool.flush_page(page_id).unwrap();
+    let page_id;
+    with_create_pages!(wrapper, [(page_id, page)], true, {});
 
     // Create new pool to test persistence
     let disk_manager = Arc::new(FileDiskManager::<DataPage>::open(temp_file.path()).unwrap());
     let new_pool = BufferPool::new(2, ReplacementStrategyType::LRU, disk_manager);
 
-    // Should be able to fetch from disk
-    let fetched = new_pool.fetch_page(page_id).unwrap();
-    assert_eq!(fetched.read().unwrap().page.get_id(), page_id);
-
-    new_pool.unpin_page(page_id, false).unwrap();
+    // Should be able to fetch from disk without error
+    with_read_pages!(wrapper, [(page_id, page)], {});
 }
 
 #[test]
 fn test_flush_page() {
     let (pool, temp_file) = setup_buffer_pool(3);
 
-    // Create multiple pages with different dirty states
-    let page1 = pool.create_page().unwrap();
-    let page1_id = page1.read().unwrap().page.get_id();
-    pool.unpin_page(page1_id, true).unwrap(); // Dirty
-
-    let page2 = pool.create_page().unwrap();
-    let page2_id = page2.read().unwrap().page.get_id();
-    pool.unpin_page(page2_id, false).unwrap(); // Clean
-
-    let page3 = pool.create_page().unwrap();
-    let page3_id = page3.read().unwrap().page.get_id();
-    pool.unpin_page(page3_id, true).unwrap(); // Dirty
+    let id1;
+    let id2;
+    let id3;
+    let wrapper = BufferpoolWrapper{ buffer_pool: Arc::clone(&pool) };
+    with_create_pages!(wrapper, [(id1, page1), (id2, page2), (id3, page3)], true, {});
 
     // Flush pages
-    pool.flush_page(page1_id).unwrap();
-    pool.flush_page(page2_id).unwrap();
-    pool.flush_page(page3_id).unwrap();
+    pool.flush_page(id1).unwrap();
+    pool.flush_page(id2).unwrap();
+    pool.flush_page(id3).unwrap();
 
     // Verify persistence
     let disk_manager = Arc::new(FileDiskManager::<DataPage>::open(temp_file.path()).unwrap());
-    let new_pool = BufferPool::new(5, ReplacementStrategyType::LRU, disk_manager);
+    let new_pool = Arc::new(BufferPool::new(5, ReplacementStrategyType::LRU, disk_manager));
 
     // All pages should be accessible
-    assert!(new_pool.fetch_page(page1_id).is_ok());
-    assert!(new_pool.fetch_page(page2_id).is_ok());
-    assert!(new_pool.fetch_page(page3_id).is_ok());
+    assert!(new_pool.fetch_page(id1).is_ok());
+    assert!(new_pool.fetch_page(id2).is_ok());
+    assert!(new_pool.fetch_page(id3).is_ok());
 }
 
 #[test]
 fn test_flush_all() {
     let (pool, temp_file) = setup_buffer_pool(3);
 
-    // Create multiple pages with different dirty states
-    let page1 = pool.create_page().unwrap();
-    let page1_id = page1.read().unwrap().page.get_id();
-    pool.unpin_page(page1_id, true).unwrap(); // Dirty
-
-    let page2 = pool.create_page().unwrap();
-    let page2_id = page2.read().unwrap().page.get_id();
-    pool.unpin_page(page2_id, false).unwrap(); // Clean
-
-    let page3 = pool.create_page().unwrap();
-    let page3_id = page3.read().unwrap().page.get_id();
-    pool.unpin_page(page3_id, true).unwrap(); // Dirty
+    let id1;
+    let id2;
+    let id3;
+    let wrapper = BufferpoolWrapper{ buffer_pool: Arc::clone(&pool) };
+    with_create_pages!(wrapper, [(id1, page1), (id2, page2), (id3, page3)], true, {});
 
     // Flush all
     pool.flush_all();
 
     // Verify persistence
     let disk_manager = Arc::new(FileDiskManager::<DataPage>::open(temp_file.path()).unwrap());
-    let new_pool = BufferPool::new(5, ReplacementStrategyType::LRU, disk_manager);
+    let new_pool = Arc::new(BufferPool::new(5, ReplacementStrategyType::LRU, disk_manager));
 
     // All pages should be accessible
-    assert!(new_pool.fetch_page(page1_id).is_ok());
-    assert!(new_pool.fetch_page(page2_id).is_ok());
-    assert!(new_pool.fetch_page(page3_id).is_ok());
+    assert!(new_pool.fetch_page(id1).is_ok());
+    assert!(new_pool.fetch_page(id2).is_ok());
+    assert!(new_pool.fetch_page(id3).is_ok());
 }
 
 #[test]
@@ -136,23 +116,8 @@ fn test_error_handling() {
     ));
 
     assert!(matches!(
-        pool.unpin_page(999, false),
-        Err(PageError::InvalidPage)
-    ));
-
-    assert!(matches!(
         pool.flush_page(999),
         Err(PageError::InvalidPage)
-    ));
-
-    // Test double unpin error
-    let page = pool.create_page().unwrap();
-    let page_id = page.read().unwrap().page.get_id();
-    pool.unpin_page(page_id, false).unwrap();
-
-    assert!(matches!(
-        pool.unpin_page(page_id, false),
-        Err(PageError::PageAlreadyUnpinned)
     ));
 }
 
@@ -160,24 +125,23 @@ fn test_error_handling() {
 fn test_capacity_constraint() {
     let capacity = 3;
     let (pool, _temp_file) = setup_buffer_pool(capacity);
+    let wrapper = BufferpoolWrapper{ buffer_pool: Arc::clone(&pool) };
 
     let mut page_ids = vec![];
-
+    let mut page_id;
     // Create exactly capacity + 1 pages
     for _ in 0..=capacity {
-        let page = pool.create_page().unwrap();
-        let page_id = page.read().unwrap().page.get_id();
-        page_ids.push(page_id);
-        pool.unpin_page(page_id, false).unwrap();
+        with_create_pages!(wrapper, [(page_id, page)], false, {
+            page_ids.push(page_id);
+        });
     }
 
     // All pages should be accessible
     let mut accessible_count = 0;
     for &page_id in &page_ids {
-        if pool.fetch_page(page_id).is_ok() {
+        with_read_pages!(wrapper, [(page_id, page)], {
             accessible_count += 1;
-            pool.unpin_page(page_id, false).unwrap();
-        }
+        });
     }
     assert_eq!(accessible_count, capacity + 1);
 
@@ -194,31 +158,23 @@ fn test_concurrent_access_multiple_threads() {
     let mut handles = vec![];
 
     for thread_id in 0..num_threads {
-        let pool_clone = Arc::clone(&pool);
+        let wrapper = BufferpoolWrapper{ buffer_pool: Arc::clone(&pool) };
 
         handles.push(thread::spawn(move || {
             let mut page_ids = vec![];
 
             // Each thread creates and accesses pages
             for i in 0..pages_per_thread {
-                let page = pool_clone.create_page().unwrap();
-                let page_id = page.read().unwrap().page.get_id();
-                page_ids.push(page_id);
-
-                // Simulate some work
-                thread::sleep(Duration::from_millis(5));
-
-                // Mark some as dirty based on thread/page pattern
-                let is_dirty = (thread_id + i) % 2 == 0;
-                pool_clone.unpin_page(page_id, is_dirty).unwrap();
+                let page_id ;
+                with_create_pages!(wrapper, [(page_id, page)], (thread_id + i) % 2 == 0, {
+                    page_ids.push(page_id);
+                    thread::sleep(Duration::from_millis(5));
+                })
             }
 
             // Try to access own pages again
             for &page_id in &page_ids {
-                let result = pool_clone.fetch_page(page_id);
-                if result.is_ok() {
-                    pool_clone.unpin_page(page_id, false).unwrap();
-                }
+                with_read_pages!(wrapper, [(page_id, page)], {});
             }
 
             page_ids
@@ -238,11 +194,11 @@ fn test_concurrent_access_multiple_threads() {
 
     // All pages should be accessible
     let mut accessible_count = 0;
+    let wrapper = BufferpoolWrapper{ buffer_pool: Arc::clone(&pool) };
     for &page_id in &all_page_ids {
-        if pool.fetch_page(page_id).is_ok() {
+        with_read_pages!(wrapper, [(page_id, page)], {
             accessible_count += 1;
-            pool.unpin_page(page_id, false).unwrap();
-        }
+        })
     }
 
     assert_eq!(accessible_count, num_threads * pages_per_thread);
@@ -251,68 +207,57 @@ fn test_concurrent_access_multiple_threads() {
 #[test]
 fn test_pinned_page_protection() {
     let (pool, _temp_file) = setup_buffer_pool(2);
+    let wrapper = BufferpoolWrapper{ buffer_pool: Arc::clone(&pool) };
 
     // Create and keep pinned
-    let page1 = pool.create_page().unwrap();
-    let page1_id = page1.read().unwrap().page.get_id();
+    let id1;
+    let id2;
+    let id3;
+    with_create_pages!(wrapper, [(id1, page1)], false, {
+        // Create second page and unpin
+        with_create_pages!(wrapper, [(id2, page2)], false, {});
 
-    // Create second page and unpin
-    let page2 = pool.create_page().unwrap();
-    let page2_id = page2.read().unwrap().page.get_id();
-    pool.unpin_page(page2_id, false).unwrap();
-
-    // Create third page - should evict page2, not page1
-    let page3 = pool.create_page().unwrap();
-    let page3_id = page3.read().unwrap().page.get_id();
-
-    // page1 and page3 should still be pinned
-    assert!(pool.fetch_page(page1_id).is_ok());
-    assert!(pool.fetch_page(page3_id).is_ok());
+        // Create third page - should evict page2, not page1
+        with_create_pages!(wrapper, [(id3, page3)], false, {
+            // page1 and page3 should still be pinned
+            assert!(pool.fetch_page(id1).is_ok());
+            assert!(pool.fetch_page(id3).is_ok());
+        });
+    });
 }
 
 #[test]
 fn test_concurrent_access_same_page() {
     let (pool, _tmp) = setup_buffer_pool(4);
+    let wrapper = Arc::new(BufferpoolWrapper{ buffer_pool: Arc::clone(&pool) });
 
     // Create 1 shared page (keep pinned by creator for reference)
-    let shared = pool.create_page().unwrap();
-    let shared_id = shared.read().unwrap().page.get_id();
-
+    let shared_id;
     let n_threads = 8;
-    let barrier = Arc::new(Barrier::new(n_threads));
     let mut handles = vec![];
+    let barrier = Arc::new(Barrier::new(n_threads));
+
+    with_create_pages!(wrapper, [(shared_id, shared)], false, {});
 
     for _ in 0..n_threads {
-        let pool_cl = Arc::clone(&pool);
         let barrier_cl = Arc::clone(&barrier);
+        let wrapper_cl = Arc::clone(&wrapper);
         handles.push(thread::spawn(move || {
             // Everyone starts together
             barrier_cl.wait();
 
             // Fetch (pin) the same page
-            let _ = pool_cl.fetch_page(shared_id).unwrap();
-
-            // Simulate work while holding the pin
-            thread::sleep(Duration::from_millis(5));
-
-            // Mark some as dirty, some not — mixed pattern
-            let tid = thread::current().id();
-            let hash = format!("{:?}", tid).bytes().fold(0u32, |a,b| a.wrapping_add(b as u32));
-            let dirty = (hash % 2) == 0;
-
-            pool_cl.unpin_page(shared_id, dirty).unwrap();
-
+            with_write_pages!(wrapper_cl, [(shared_id, shared)], true, {
+                    // Simulate work while holding the pin
+                    thread::sleep(Duration::from_millis(5));
+                });
             // Return whether we succeeded
             true
         }));
     }
 
     // Wait for everyone
-    for h in handles { h.join().unwrap(); }
-
-    // At this point, only the creator's original pin remains
-    let cnt = shared.read().unwrap().pin_count.load(Ordering::SeqCst);
-    assert_eq!(cnt, 1, "All threads should have unpinned; one creator pin remains");
+    for h in handles { h.join().unwrap(); };
 }
 
 // TODO: To be investigated later

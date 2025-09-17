@@ -1,60 +1,42 @@
-use paste::paste;
-
 #[macro_export]
 macro_rules! with_create_pages {
-    ($tree:expr, [ $( ($id:expr, $var:ident) ),+ ], $flush:expr, $body:block ) => {{
-        $(
-            paste! {
-                // create page (hard failure if it fails)
-                let [<frame_$var>] = $tree.buffer_pool.create_page().expect("create failed");
-                let mut $var = [<frame_$var>].write().unwrap();
-            }
-        )+
-        // execute body with page binding
-        { $body }
-        // unpin & flush
-        $(
-            drop($var);
-            $tree.buffer_pool.unpin_page($id, true).expect("unpin failed");
-            if $flush {
-                $tree.buffer_pool.flush_page($id).expect("flush failed");
-            }
-        )+
+    ($pool:expr, [ $( ($id:expr, $var:ident) ),+ ], $flush:expr, $body:block ) => {{
+        paste! {
+            $(
+                let mut [<pg_$var>] = $pool.buffer_pool.create_page().expect("create failed");
+                let mut $var = [<pg_$var>].write();
+                $id = $var.get_id();
+            )+
+
+            { $body }
+
+            // unpin & flush
+            $(
+                drop($var);    // explicit drop is required to unpin page
+                if $flush {
+                    $pool.buffer_pool.flush_page($id).expect("flush failed");
+                }
+            )+
+        }
     }};
 }
 
 #[macro_export]
 macro_rules! with_write_pages {
-    ($tree:expr, [ $( ($id:expr, $var:ident) ),+ ], $flush:expr, $body:block ) => {{
-        let mut all_pages_fetched = true;
-        $(
-            paste! {
-                let [<frame_$var>] = match $tree.buffer_pool.fetch_page($id) {
-                    Ok(f) => Some(f),
-                    Err(_) => {
-                        all_pages_fetched = false;
-                        None
-                    }
-                };
-                let mut $var = None;
-                if let Some(ref frame) = [<frame_$var>] {
-                    $var = Some(frame.write().unwrap());
-                }
-            }
-        )+
-
-        if all_pages_fetched {
+    ($pool:expr, [ $( ($id:expr, $var:ident) ),+ ], $flush:expr, $body:block ) => {{
+        paste! {
             $(
-                let mut $var = $var.unwrap();
+                let mut [<pg_$var>] = $pool.buffer_pool.fetch_page($id).expect("fetch failed");
+                let mut $var = [<pg_$var>].write();
             )+
+
             { $body }
 
             // unpin & flush
             $(
-                drop($var);
-                $tree.buffer_pool.unpin_page($id, true).expect("unpin failed");
+                drop($var);    // explicit drop is required to unpin page
                 if $flush {
-                    $tree.buffer_pool.flush_page($id).expect("flush failed");
+                    $pool.buffer_pool.flush_page($id).expect("flush failed");
                 }
             )+
         }
@@ -63,37 +45,14 @@ macro_rules! with_write_pages {
 
 #[macro_export]
 macro_rules! with_read_pages {
-    ($tree:expr, [ $( ($id:expr, $var:ident) ),+ ], $flush:expr, $body:block ) => {{
-        let mut all_pages_fetched = true;
-        $(
-            paste! {
-                let [<frame_$var>] = match $tree.buffer_pool.fetch_page($id) {
-                    Ok(f) => Some(f),
-                    Err(_) => {
-                        all_pages_fetched = false;
-                        None
-                    }
-                };
-                let mut $var = None;
-                if let Some(ref frame) = [<frame_$var>] {
-                    $var = Some(frame.read().unwrap());
-                }
-            }
-        )+
+    ($pool:expr, [ $( ($id:expr, $var:ident) ),+ ], $body:block ) => {{
+        paste! {
+            $(
+                let [<pg_$var>] = $pool.buffer_pool.fetch_page($id).expect("fetch failed");
+                let $var = [<pg_$var>].read();
+            )+
 
-        if all_pages_fetched {
-            $(
-                let $var = $var.unwrap();
-            )+
             { $body }
-            // unpin & flush
-            $(
-                drop($var);
-                $tree.buffer_pool.unpin_page($id, false).expect("unpin failed");
-                if $flush {
-                    $tree.buffer_pool.flush_page($id).expect("flush failed");
-                }
-            )+
         }
     }};
 }
