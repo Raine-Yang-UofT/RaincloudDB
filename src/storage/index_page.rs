@@ -225,24 +225,16 @@ impl IndexPage {
                     self.children.insert(0, child);
 
                     // the new separator for parent should be the last key in sibling
-                    if let Some(&new_separator) = sibling.keys.last() {
-                        Some(new_separator)
-                    } else {
-                        None // shouldn't happen if we maintain min keys
-                    }
+                    sibling.keys.last().copied()
                 } else {
                     // take first key from right sibling
-                    let key = sibling.keys.pop().unwrap();
-                    let child = sibling.children.pop().unwrap();
+                    let key = sibling.keys.remove(0);
+                    let child = sibling.children.remove(0);
                     self.keys.push(key);
                     self.children.push(child);
 
                     // the new separator for parent should be the first key in sibling
-                    if let Some(&new_separator) = sibling.keys.first() {
-                        Some(new_separator)
-                    } else {
-                        None
-                    }
+                    sibling.keys.first().copied()
                 }
             }
             IndexType::Leaf => {
@@ -254,24 +246,16 @@ impl IndexPage {
                     self.rids.insert(0, rid);
 
                     // for leaf nodes, the new separator is the first key in self (the borrowed one)
-                    if let Some(&new_separator) = self.keys.last() {
-                        Some(new_separator)
-                    } else {
-                        None
-                    }
+                    self.keys.first().copied()
                 } else {
                     // take first key from right sibling
-                    let key = sibling.keys.pop().unwrap();
-                    let rid = sibling.rids.pop().unwrap();
+                    let key = sibling.keys.remove(0);
+                    let rid = sibling.rids.remove(0);
                     self.keys.push(key);
                     self.rids.push(rid);
 
                     // for leaf nodes borrowing from right, the new separator is the borrowed key
-                    if let Some(&new_separator) = self.keys.last() {
-                        Some(new_separator)
-                    } else {
-                        None
-                    }
+                    sibling.keys.first().copied()
                 }
             }
         }
