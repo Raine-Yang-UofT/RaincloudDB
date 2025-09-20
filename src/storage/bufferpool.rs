@@ -199,36 +199,6 @@ impl<P: Page + 'static> BufferPool<P> {
         }
     }
 
-    /// Remove a connection using the page, optionally marking it dirty
-    /// Notify bufferpool to be able to make eviction
-    #[deprecated]
-    pub fn unpin_page(&self, page_id: PageId, is_dirty: bool) -> Result<(), PageError> {
-        // let frames = self.page_table.read().unwrap();
-        // if let Some(frame) = frames.get(&page_id) {
-        //     let fg = frame.write().unwrap();
-        //     if is_dirty {
-        //         fg.is_dirty.store(true, Ordering::SeqCst);
-        //     }
-        //
-        //     // prevent underflow: disallow unpin when already 0
-        //     let current = fg.pin_count.load(Ordering::SeqCst);
-        //     if current == 0 {
-        //         return Err(PageError::PageAlreadyUnpinned);
-        //     }
-        //
-        //     let prev = fg.pin_count.fetch_sub(1, Ordering::SeqCst);
-        //     if prev == 1 {
-        //         // page is unpinned, notify eviction waiters
-        //         let (_, cv) = &self.evict_cv;
-        //         cv.notify_all();
-        //     }
-        //     Ok(())
-        // } else {
-        //     Err(PageError::InvalidPage)
-        // }
-        Ok(())
-    }
-
     /// Evict one unpinned page using the replacement strategy.
     /// If the bufferpool is full and no page is available for eviction,
     /// evict_one will block until a page can be evicted
