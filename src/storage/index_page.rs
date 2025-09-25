@@ -155,7 +155,6 @@ impl IndexPage {
                 let promoted_key = self.keys[mid];
                 let sibling_keys = self.keys.split_off(mid + 1);
                 let sibling_children = self.children.split_off(mid + 1);
-                self.keys.pop();
 
                 let mut sibling = IndexPage::new(new_id, IndexType::Internal);
                 sibling.keys = sibling_keys;
@@ -180,15 +179,6 @@ impl IndexPage {
     /// Merge sibling into one page
     pub fn merge(&mut self, sibling: &mut Self) {
         debug_assert_eq!(self.page_type, sibling.page_type);
-
-        // swap self and sibling to maintain key order, if needed
-        if let (Some(&self_first), Some(&sibling_last)) =
-            (self.keys.first(), sibling.keys.last())
-        {
-            if self_first > sibling_last {
-                std::mem::swap(self, sibling);
-            }
-        }
 
         match self.page_type {
             IndexType::Internal => {
