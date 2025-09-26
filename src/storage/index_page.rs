@@ -95,9 +95,13 @@ impl IndexPage {
     /// For leaf page: insert a key into index page
     pub fn insert_record(&mut self, key: i64, record: RecordId) {
         debug_assert_eq!(self.page_type, IndexType::Leaf);
-        let index = self.keys.binary_search(&key).unwrap_or_else(|pos| pos);
-        self.keys.insert(index, key);
-        self.rids.insert(index, record);
+        match self.keys.binary_search(&key) {
+            Ok(index) => self.rids[index] = record,
+            Err(index) => {
+                self.keys.insert(index, key);
+                self.rids.insert(index, record);
+            }
+        }
     }
 
     /// For internal page: insert a child into index page
@@ -456,6 +460,18 @@ mod tests {
         assert_eq!(page.keys, vec![42]);
         assert_eq!(page.search_rid(&42), Some(&rid));
         assert_eq!(page.search_rid(&99), None);
+    }
+
+    #[test]
+    fn test_insert_duplicate_records() {
+        let mut page = IndexPage::new(1, IndexType::Leaf);
+        let rid1 = create_record(2, 3);
+        let rid2 = create_record(4, 5);
+        page.insert_record(42, rid1);
+        page.insert_record(42, rid2);
+
+        assert_eq!(page.keys, vec![42]);
+        assert_eq!(page.search_rid(&42), Some(&rid2));
     }
 
     #[test]
