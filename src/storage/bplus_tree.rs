@@ -2,7 +2,7 @@ use paste::paste;
 use std::sync::Arc;
 use crate::types::PageId;
 use crate::storage::bufferpool::BufferPool;
-use crate::storage::index_page::{IndexPage, IndexType, RecordId};
+use crate::storage::index_page::{get_internal_capacity, get_leaf_capacity, IndexPage, IndexType, RecordId};
 use crate::{with_create_pages, with_read_pages, with_write_pages};
 use crate::storage::page::Page;
 
@@ -22,7 +22,10 @@ impl BPlusTree {
                internal_max_keys: usize,
                leaf_max_keys: usize
     ) -> BPlusTree {
-        // TODO validate max keys with page size
+        debug_assert!(internal_max_keys > 0);
+        debug_assert!(leaf_max_keys > 0);
+        debug_assert!(internal_max_keys < get_internal_capacity());
+        debug_assert!(leaf_max_keys < get_leaf_capacity());
 
         BPlusTree {
             root,

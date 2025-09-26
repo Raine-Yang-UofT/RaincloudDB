@@ -8,6 +8,16 @@ const KEYS_LEN: usize = size_of::<KeysLen>();
 pub const fn get_page_header_size() -> usize {
     PAGE_ID_SIZE + 1 + KEYS_LEN
 }
+// maximum number of leaf nodes an index page can hold
+pub const fn get_leaf_capacity() -> usize {
+    (PAGE_SIZE - get_page_header_size() - PAGE_ID_SIZE - 1) /
+        (PAGE_ID_SIZE + SLOT_ID_SIZE + size_of::<i64>())
+}
+// maximum number of internal nodes an index page can hold
+pub const fn get_internal_capacity() -> usize {
+    (PAGE_SIZE - get_page_header_size() - PAGE_ID_SIZE) /
+        (size_of::<i64>() + PAGE_ID_SIZE)
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecordId {
