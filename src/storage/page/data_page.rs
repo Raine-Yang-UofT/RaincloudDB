@@ -1,5 +1,6 @@
+use crate::{bitmap_get, bitmap_set};
 use crate::types::{PAGE_SIZE, MAX_SLOTS, PageId, SlotId};
-use crate::storage::page::{Page, PageError};
+use crate::storage::page::page::{Page, PageError};
 
 const SLOT_SIZE: usize = 4;
 const PAGE_ID_SIZE: usize = size_of::<PageId>();
@@ -23,7 +24,7 @@ pub struct DataPage {
     next_slot: SlotId, // next available slot index, grow from top to bottom
     free_start: u16, // offset of free space, grow from bottom to top
     slots: [Option<Slot>; MAX_SLOTS], // page slot array
-    valid_slots: [u8; VALID_SLOT_BITMAP_SIZE], // bitmap to represent whether the slot value is valid (not deleted)
+    pub valid_slots: [u8; VALID_SLOT_BITMAP_SIZE], // bitmap to represent whether the slot value is valid (not deleted)
     data: [u8; PAYLOAD_SIZE], // payload data, excluding page header and slot array
 }
 
@@ -144,27 +145,6 @@ impl Page for DataPage {
 
 impl DataPage {
 
-    /// Note: set_slot_validity should be private since every update
-    /// on slot array should be from page API
-    fn set_slot_validity(&mut self, index: usize, value: bool) {
-        assert!(index < 255, "Index out of bounds");
-        let byte_index = index / 8;
-        let bit_index = index % 8;
-        if value {
-            self.valid_slots[byte_index] |= 1 << bit_index;
-        } else {
-            self.valid_slots[byte_index] &= !(1 << bit_index);
-        }
-    }
-
-    /// Check if a slot in slot array is empty
-    pub fn get_slot_validity(&self, index: usize) -> bool {
-        assert!(index < 255, "Index out of bounds");
-        let byte_index = index / 8;
-        let bit_index = index % 8;
-        (self.valid_slots[byte_index] >> bit_index) & 1 != 0
-    }
-
     /// Insert record to page
     pub fn insert_record(&mut self, record: &[u8]) -> Option<SlotId> {
         // check for available slot
@@ -188,7 +168,7 @@ impl DataPage {
             offset,
             length: record_len,
         };
-        self.set_slot_validity(self.next_slot as usize, true);
+        bitmap_set!(self.valid_slots, self.next_slot as usize, true);
         self.slots[self.next_slot as usize] = Some(slot);
         self.next_slot += 1;
 
@@ -198,7 +178,7 @@ impl DataPage {
     /// Get a record by SlotId
     pub fn get_record(&self, slot_id: SlotId) -> Option<&[u8]> {
         // return None if slot is invalid
-        if !self.get_slot_validity(slot_id as usize) {
+        if !bitmap_get!(self.valid_slots, slot_id as usize) {
             return None;
         }
 
@@ -215,7 +195,7 @@ impl DataPage {
     /// Update record
     pub fn update_record(&mut self, slot_id: SlotId, new_record: &[u8]) -> Result<(), PageError> {
         // check if record exists
-        if !self.get_slot_validity(slot_id as usize) {
+        if !bitmap_get!(self.valid_slots, slot_id as usize) {
             return Err(PageError::InvalidSlot);
         }
 
@@ -236,8 +216,8 @@ impl DataPage {
 
     /// Mark a record as deleted
     pub fn delete_record(&mut self, slot_id: SlotId) -> Result<(), PageError> {
-        if self.get_slot_validity(slot_id as usize) {
-            self.set_slot_validity(slot_id as usize, false);
+        if bitmap_get!(self.valid_slots, slot_id as usize) {
+            bitmap_set!(self.valid_slots, slot_id as usize, false);
             return Ok(());
         }
         Err(PageError::InvalidSlot)
@@ -246,7 +226,7 @@ impl DataPage {
     /// Iterate through records on page
     pub fn iter_record(&self) -> impl Iterator<Item = (SlotId, &[u8])> {
         self.slots.iter().enumerate()
-            .filter(move |(i, _)| self.get_slot_validity(*i))
+            .filter(move |(i, _)| bitmap_get!(self.valid_slots, *i))
             .filter_map(|(i, slot)| {
                 slot.as_ref().map(|s| {
                     let start = s.offset as usize;
@@ -294,7 +274,7 @@ mod tests {
 
         assert!(!page.is_empty());
         assert_eq!(page.get_free_space(), initial_free_space - SMALL_RECORD.len());
-        assert!(page.get_slot_validity(slot_id as usize));
+        assert!(bitmap_get!(page.valid_slots, slot_id as usize));
         assert_eq!(page.get_record(slot_id).unwrap(), SMALL_RECORD);
     }
 
@@ -338,11 +318,11 @@ mod tests {
         let (mut page, slot1, slot2) = create_page_with_records();
 
         assert!(page.delete_record(slot1).is_ok());
-        assert!(!page.get_slot_validity(slot1 as usize));
+        assert!(!bitmap_get!(page.valid_slots, slot1 as usize));
         assert!(page.get_record(slot1).is_none());
 
         // slot2 should still be valid
-        assert!(page.get_slot_validity(slot2 as usize));
+        assert!(bitmap_get!(page.valid_slots, slot2 as usize));
         assert_eq!(page.get_record(slot2).unwrap(), LARGE_RECORD);
     }
 
@@ -445,7 +425,7 @@ mod tests {
         let deserialized_slot = deserialized.slots[0].unwrap();
         assert_eq!(original_slot.offset, deserialized_slot.offset);
         assert_eq!(original_slot.length, deserialized_slot.length);
-        assert_eq!(page.get_slot_validity(0), deserialized.get_slot_validity(0));
+        assert_eq!(bitmap_get!(page.valid_slots, 0), bitmap_get!(deserialized.valid_slots, 0));
 
         // Check payload
         let recovered = page.get_record(slot_id.unwrap()).expect("should exist");
@@ -471,7 +451,7 @@ mod tests {
         assert_eq!(deserialized.next_slot, 42);
         for (i, slot) in deserialized.slots.iter().enumerate() {
             assert!(slot.is_none());
-            assert!(!page.get_slot_validity(i))
+            assert!(!bitmap_get!(page.valid_slots, i))
         }
     }
 }

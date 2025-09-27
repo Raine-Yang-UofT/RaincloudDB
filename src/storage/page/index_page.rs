@@ -1,4 +1,4 @@
-use crate::storage::page::Page;
+use crate::storage::page::page::Page;
 use crate::types::{PageId, SlotId, PAGE_SIZE};
 
 type KeysLen = u16;
@@ -455,7 +455,7 @@ impl Page for IndexPage {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::storage::page::Page;
+    use crate::storage::page::page::Page;
 
     fn create_record(page: PageId, slot: SlotId) -> RecordId {
         RecordId { page_id: page, slot_id: slot }

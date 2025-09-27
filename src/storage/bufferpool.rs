@@ -1,4 +1,4 @@
-use crate::storage::page::{Page, PageError};
+use crate::storage::page::page::{Page, PageError};
 use crate::storage::disk_manager::{DiskManager};
 use std::collections::HashMap;
 use std::sync::{RwLock, Arc, Condvar, Mutex};

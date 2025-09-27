@@ -2,9 +2,9 @@ use paste::paste;
 use std::sync::Arc;
 use crate::types::PageId;
 use crate::storage::bufferpool::BufferPool;
-use crate::storage::index_page::{get_internal_capacity, get_leaf_capacity, IndexPage, IndexType, RecordId};
+use crate::storage::page::index_page::{get_internal_capacity, get_leaf_capacity, IndexPage, IndexType, RecordId};
 use crate::{with_create_pages, with_read_pages, with_write_pages};
-use crate::storage::page::Page;
+use crate::storage::page::page::Page;
 
 /// B+ Tree Invariant: left keys < parent separator <= right keys
 pub struct BPlusTree {

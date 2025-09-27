@@ -3,8 +3,8 @@ use tempfile::NamedTempFile;
 use raincloud_db::storage::bplus_tree::BPlusTree;
 use raincloud_db::storage::bufferpool::BufferPool;
 use raincloud_db::storage::disk_manager::FileDiskManager;
-use raincloud_db::storage::index_page::{IndexPage, RecordId};
-use raincloud_db::storage::page::Page;
+use raincloud_db::storage::page::index_page::{IndexPage, RecordId};
+use raincloud_db::storage::page::page::Page;
 use raincloud_db::storage::replacement_strategy::ReplacementStrategyType;
 use raincloud_db::types::{PageId, SlotId};
 

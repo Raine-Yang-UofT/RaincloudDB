@@ -56,3 +56,28 @@ macro_rules! with_read_pages {
         }
     }};
 }
+
+#[macro_export]
+/// get a bit from a bitmap
+macro_rules! bitmap_get {
+    ($bitmap:expr, $index:expr) => {{
+        let byte_index = $index / 8;
+        let bit_index = $index % 8;
+        ($bitmap[byte_index] >> bit_index) & 1 != 0
+    }};
+}
+
+#[macro_export]
+/// Set a bit in a bitmap
+macro_rules! bitmap_set {
+    ($bitmap:expr, $index:expr, $value:expr) => {{
+        let byte_index = $index / 8;
+        let bit_index = $index % 8;
+        if $value {
+            $bitmap[byte_index] |= 1 << bit_index;
+        } else {
+            $bitmap[byte_index] &= !(1 << bit_index);
+        }
+    }};
+}
+

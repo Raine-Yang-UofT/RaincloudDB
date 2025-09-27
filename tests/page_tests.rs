@@ -1,5 +1,6 @@
-use raincloud_db::storage::data_page::{DataPage, PAYLOAD_SIZE};
-use raincloud_db::storage::page::Page;
+use raincloud_db::bitmap_get;
+use raincloud_db::storage::page::data_page::{DataPage, PAYLOAD_SIZE};
+use raincloud_db::storage::page::page::Page;
 use raincloud_db::types::MAX_SLOTS;
 
 #[test]
@@ -94,7 +95,7 @@ fn test_multiple_insertions_and_deletions() {
 
     let result = DataPage::deserialize(&page.serialize()).expect("Final deserialize failed");
     let total_valid = (0..MAX_SLOTS)
-        .filter(|&i| result.get_slot_validity(i))
+        .filter(|&i| bitmap_get!(result.valid_slots, i))
         .count();
 
     assert_eq!(total_valid, 5, "Expected 5 valid records after deletions and insertions");

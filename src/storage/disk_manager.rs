@@ -1,4 +1,4 @@
-use crate::storage::page::{Page};
+use crate::storage::page::page::{Page};
 use crate::types::{PAGE_SIZE, PageId};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
@@ -86,8 +86,8 @@ impl<P: Page> DiskManager<P> for FileDiskManager<P> {
 mod tests {
     use super::*;
     use tempfile::NamedTempFile;
-    use crate::storage::page::Page;
-    use crate::storage::data_page::DataPage;
+    use crate::storage::page::page::Page;
+    use crate::storage::page::data_page::DataPage;
 
     #[test]
     fn test_open_new_file() {
