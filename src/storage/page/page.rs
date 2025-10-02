@@ -20,9 +20,6 @@ pub trait Page: Send + Sync {
 
     /// Return whether page is empty
     fn is_empty(&self) -> bool;
-
-    /// Clear the page
-    fn clear(&mut self);
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]

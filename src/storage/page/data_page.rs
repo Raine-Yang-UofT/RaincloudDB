@@ -24,7 +24,7 @@ pub struct DataPage {
     next_slot: SlotId, // next available slot index, grow from top to bottom
     free_start: u16, // offset of free space, grow from bottom to top
     slots: [Option<Slot>; MAX_SLOTS], // page slot array
-    pub valid_slots: [u8; VALID_SLOT_BITMAP_SIZE], // bitmap to represent whether the slot value is valid (not deleted)
+    valid_slots: [u8; VALID_SLOT_BITMAP_SIZE], // bitmap to represent whether the slot value is valid (not deleted)
     data: [u8; PAYLOAD_SIZE], // payload data, excluding page header and slot array
 }
 
@@ -132,14 +132,6 @@ impl Page for DataPage {
     #[inline]
     fn is_empty(&self) -> bool {
         self.next_slot == 0
-    }
-
-    fn clear(&mut self) {
-        self.data = [0u8; PAYLOAD_SIZE];
-        self.slots = [None; MAX_SLOTS];
-        self.next_slot = 0;
-        self.valid_slots = [0; VALID_SLOT_BITMAP_SIZE];
-        self.free_start = PAYLOAD_SIZE as u16;
     }
 }
 
@@ -382,20 +374,6 @@ mod tests {
         assert_eq!(records.len(), 2);
         assert!(records.contains(&(slot1, &SMALL_RECORD[..])));
         assert!(records.contains(&(slot2, &LARGE_RECORD[..])));
-    }
-
-    #[test]
-    fn test_clear() {
-        let (mut page, _, _) = create_page_with_records();
-
-        page.clear();
-
-        assert!(page.is_empty());
-        assert_eq!(page.get_free_space(), PAYLOAD_SIZE);
-        assert_eq!(page.next_slot, 0);
-        assert_eq!(page.free_start, PAYLOAD_SIZE as u16);
-        assert!(page.valid_slots.iter().all(|&b| b == 0));
-        assert!(page.slots.iter().all(|s| s.is_none()));
     }
 
     #[test]

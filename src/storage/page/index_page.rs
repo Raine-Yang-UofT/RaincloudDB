@@ -198,13 +198,11 @@ impl IndexPage {
             IndexType::Internal => {
                 self.keys.extend(&sibling.keys);
                 self.children.extend(&sibling.children);
-                sibling.clear()
             }
             IndexType::Leaf => {
                 self.keys.extend(&sibling.keys);
                 self.rids.extend(&sibling.rids);
                 self.next = sibling.next.take();
-                sibling.clear();
             }
         }
     }
@@ -442,13 +440,6 @@ impl Page for IndexPage {
     fn is_empty(&self) -> bool {
         self.keys.is_empty()
     }
-
-    fn clear(&mut self) {
-        self.keys.clear();
-        self.rids.clear();
-        self.children.clear();
-        self.next = None;
-    }
 }
 
 
@@ -610,15 +601,5 @@ mod tests {
         let free1 = page.get_free_space();
 
         assert!(free1 < free0);
-    }
-
-    #[test]
-    fn test_clear_page() {
-        let mut page = IndexPage::new(1, IndexType::Leaf);
-        page.insert_record(1, create_record(1, 1));
-        assert!(!page.is_empty());
-        page.clear();
-        assert!(page.is_empty());
-        assert_eq!(page.get_next(), None);
     }
 }

@@ -61,9 +61,14 @@ macro_rules! with_read_pages {
 /// get a bit from a bitmap
 macro_rules! bitmap_get {
     ($bitmap:expr, $index:expr) => {{
-        let byte_index = $index / 8;
-        let bit_index = $index % 8;
-        ($bitmap[byte_index] >> bit_index) & 1 != 0
+        let index = $index;
+        let byte_index = index / 8;
+        let bit_index = index % 8;
+        if byte_index >= $bitmap.len() {
+            false
+        } else {
+            ($bitmap[byte_index] >> bit_index) & 1 != 0
+        }
     }};
 }
 
@@ -71,8 +76,9 @@ macro_rules! bitmap_get {
 /// Set a bit in a bitmap
 macro_rules! bitmap_set {
     ($bitmap:expr, $index:expr, $value:expr) => {{
-        let byte_index = $index / 8;
-        let bit_index = $index % 8;
+        let index = $index;
+        let byte_index = index / 8;
+        let bit_index = index % 8;
         if $value {
             $bitmap[byte_index] |= 1 << bit_index;
         } else {
