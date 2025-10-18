@@ -320,7 +320,6 @@ impl Page for IndexPage {
                 // write last child
                 if let Some(last) = self.children.last() {
                     buf[cursor..cursor + PAGE_ID_SIZE].copy_from_slice(&last.to_le_bytes());
-                    cursor += PAGE_ID_SIZE;
                 }
 
             },
@@ -379,7 +378,6 @@ impl Page for IndexPage {
                 // deserialize last child
                 if keys_len > 0 {
                     let child = PageId::from_le_bytes(buf[cursor..cursor + PAGE_ID_SIZE].try_into().ok()?);
-                    cursor += PAGE_ID_SIZE;
                     children.push(child);
                 }
             },

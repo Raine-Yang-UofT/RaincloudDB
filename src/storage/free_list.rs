@@ -211,8 +211,7 @@ mod tests {
         freelist.allocate(FLUSH);
 
         // After allocation, the disk should contain header page with id 1 (per FreeList implementation)
-        let header = freelist.disk.read_page(1).expect("header page 1 should exist on disk");
-        assert!(header.get_offset() >= 0, "header offset should be set");
+        freelist.disk.read_page(1).expect("header page 1 should exist on disk");
     }
 
     #[test]
@@ -237,9 +236,7 @@ mod tests {
 
         // flush header to disk and read back to ensure no panics and data exists
         freelist.flush_header(1);
-        let header_on_disk = freelist.disk.read_page(1).expect("header page 1 should exist");
-        // offset should still be non-negative
-        assert!(header_on_disk.get_offset() >= 0);
+        freelist.disk.read_page(1).expect("header page 1 should exist");
     }
 
     #[test]
@@ -261,7 +258,7 @@ mod tests {
         // creates new header page id = start + 1 (start == 1) -> page id 2
         let second_page = freelist.disk.read_page(2);
         assert!(second_page.is_some(), "expected a second header page on disk (id 2)");
-        assert!(extra != 0, "allocated page id should be non-zero");
+        assert_ne!(extra, 0, "allocated page id should be non-zero");
     }
 
     #[test]
@@ -276,8 +273,7 @@ mod tests {
         freelist.flush_all();
 
         // confirm header page exists on disk after flushes
-        let hdr = freelist.disk.read_page(1).expect("header page 1 should exist after flush");
-        assert!(hdr.get_offset() >= 0);
+        freelist.disk.read_page(1).expect("header page 1 should exist after flush");
         assert_ne!(*freelist.head.get_mut().unwrap(), 0);
     }
 }
