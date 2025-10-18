@@ -1,6 +1,6 @@
 use paste::paste;
 use std::sync::Arc;
-use crate::types::PageId;
+use crate::types::{PageId, FLUSH};
 use crate::storage::bufferpool::BufferPool;
 use crate::storage::page::index_page::{get_internal_capacity, get_leaf_capacity, IndexPage, IndexType, RecordId};
 use crate::{with_create_pages, with_read_pages, with_write_pages};
@@ -60,7 +60,7 @@ impl BPlusTree {
         let root_id = self.root;
 
         // early insert if tree is empty (leaf root)
-        with_write_pages!(self, [(root_id, root_page)], true, {
+        with_write_pages!(self, [(root_id, root_page)], FLUSH, {
             if root_page.page_type == IndexType::Leaf && root_page.keys.is_empty() {
                 root_page.insert_record(key, rid);
                 return;
@@ -73,13 +73,13 @@ impl BPlusTree {
         let leaf_id = stack.pop().expect("Error: leaf node not found");
         let mut promote: Option<(i64, PageId)> = None;
 
-        with_write_pages!(self, [(leaf_id, leaf_page)], true, {
+        with_write_pages!(self, [(leaf_id, leaf_page)], FLUSH, {
             leaf_page.insert_record(key, rid);
 
             // split leaf if overflow
             if leaf_page.keys.len() > self.leaf_max_keys {
                 let sib_id;
-                with_create_pages!(self, [(sib_id, sib_page)], true, {
+                with_create_pages!(self, [(sib_id, sib_page)], FLUSH, {
                     let (promoted_key, new_sibling_page) = leaf_page.split(sib_id);
                     *sib_page = new_sibling_page;
                     promote = Some((promoted_key, sib_id));
@@ -91,13 +91,13 @@ impl BPlusTree {
         while let Some((promoted_key, promoted_child)) = promote.take() {
             if let Some(parent_id) = stack.pop() {
 
-                with_write_pages!(self, [(parent_id, parent_page)], true, {
+                with_write_pages!(self, [(parent_id, parent_page)], FLUSH, {
                     parent_page.insert_child(promoted_key, promoted_child);
 
                     // split parent if exceeds capacity
                     if parent_page.keys.len() > self.internal_max_keys {
                         let sib_id;
-                        with_create_pages!(self, [(sib_id, sib_page)], true, {
+                        with_create_pages!(self, [(sib_id, sib_page)], FLUSH, {
                             let (promoted_key, sibling_page) = parent_page.split(sib_id);
                             *sib_page = sibling_page;
                             sib_page.page_type = IndexType::Internal;
@@ -107,8 +107,8 @@ impl BPlusTree {
                 });
             } else {
                 // no parent: create new root
-                let mut root_id = 0;
-                with_create_pages!(self, [(root_id, root_page)], true, {
+                let root_id ;
+                with_create_pages!(self, [(root_id, root_page)], FLUSH, {
                     root_page.page_type = IndexType::Internal;
                     root_page.get_children_mut().push(self.root);
                     root_page.insert_child(promoted_key, promoted_child);
@@ -133,7 +133,7 @@ impl BPlusTree {
         // Step 1: delete from leaf
         let mut stack = self.descend_to_leaf(key);
         let leaf_id = stack.pop().unwrap();
-        with_write_pages!(self, [(leaf_id, leaf_page)], true, {
+        with_write_pages!(self, [(leaf_id, leaf_page)], FLUSH, {
             let removed = leaf_page.remove_key(key);
             if !removed {
                 return false;
@@ -148,7 +148,7 @@ impl BPlusTree {
         let mut is_leaf = true;    // is current layer the leaf layer
 
         while let Some(parent_id) = stack.pop() {
-            with_write_pages!(self, [(parent_id, parent_page), (child_id, child_page)], true, {
+            with_write_pages!(self, [(parent_id, parent_page), (child_id, child_page)], FLUSH, {
                 let index = parent_page.get_children().iter()
                     .position(|&id| id == child_id)
                     .expect("Error: child not found in parent");
@@ -158,7 +158,7 @@ impl BPlusTree {
                 if index > 0 {
                     let left_id = parent_page.get_children()[index - 1];
 
-                    with_write_pages!(self, [(left_id, left_page)], true, {
+                    with_write_pages!(self, [(left_id, left_page)], FLUSH, {
                         if let Some(new_separator) = child_page.redistribute(
                             // redistribute succeed, set new separator to parent keys
                             &mut left_page,
@@ -173,7 +173,7 @@ impl BPlusTree {
                     // try borrow from right sibling
                     let right_id = parent_page.get_children()[index + 1];
 
-                    with_write_pages!(self, [(right_id, right_page)], true, {
+                    with_write_pages!(self, [(right_id, right_page)], FLUSH, {
                         if let Some(new_separator) = child_page.redistribute(
                             &mut right_page,
                             false,
@@ -190,7 +190,7 @@ impl BPlusTree {
                 if index > 0 {
                     let left_id = parent_page.get_children()[index - 1];
 
-                    with_write_pages!(self, [(left_id, left_page)], true, {
+                    with_write_pages!(self, [(left_id, left_page)], FLUSH, {
                         // check if merge is possible (combined size doesn't exceed max)
                         let max_keys = if is_leaf { self.leaf_max_keys } else { self.internal_max_keys };
                         let combined_size = left_page.keys.len() + child_page.keys.len() +
@@ -206,17 +206,19 @@ impl BPlusTree {
                         } else {
                             // for internal: bring parent separator down to left_page before merging
                             let separator = parent_page.keys.remove(index - 1);
+                            left_page.keys.push(separator);
                         }
 
                         // merge child to left page
                         left_page.merge(&mut child_page);
                         parent_page.get_children_mut().remove(index);
-                        // TODO: free the child page entirely
+                        // free the child page entirely
+                        self.buffer_pool.free_page(child_id, FLUSH);
                     });
                 } else if index < parent_page.get_children().len() - 1 {
                     // merge with right sibling
                     let right_id = parent_page.get_children()[index + 1];
-                    with_write_pages!(self, [(right_id, right_page)], true, {
+                    with_write_pages!(self, [(right_id, right_page)], FLUSH, {
                         // check if merge is possible (combined size doesn't exceed max)
                         let max_keys = if is_leaf { self.leaf_max_keys } else { self.internal_max_keys };
                         let combined_size = right_page.keys.len() + child_page.keys.len() +
@@ -238,7 +240,8 @@ impl BPlusTree {
                         // merge right into child page
                         child_page.merge(&mut right_page);
                         parent_page.get_children_mut().remove(index + 1);
-                        // TODO: free right page entirely
+                        // free right page entirely
+                        self.buffer_pool.free_page(right_id, FLUSH);
                     });
                 }
 
@@ -257,7 +260,7 @@ impl BPlusTree {
 
         // root collapse: replace root with child if root only has one element
         let root_id = self.root;
-        with_write_pages!(self, [(root_id, root_page)], true, {
+        with_read_pages!(self, [(root_id, root_page)], {
             match root_page.page_type {
                 IndexType::Internal => {
                     // internal root should collapse when it has no keys (and thus only 1 child)
@@ -267,6 +270,7 @@ impl BPlusTree {
 
                         let new_root = root_page.get_children()[0];
                         // TODO: free old root page entirely
+                        self.buffer_pool.free_page(root_id, FLUSH);
                         self.root = new_root;
                     }
                 }

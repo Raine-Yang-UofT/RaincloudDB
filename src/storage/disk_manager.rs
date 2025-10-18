@@ -3,18 +3,15 @@ use crate::types::{PAGE_SIZE, PageId};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::Path;
-use std::sync::atomic::AtomicU64;
 use std::sync::Mutex;
 
 pub trait DiskManager<P: Page>: Send + Sync {
     fn read_page(&self, id: PageId) -> Option<P>;
     fn write_page(&self, page: &P);
-    fn allocate_page_id(&self) -> PageId;
 }
 
 pub struct FileDiskManager<P: Page> {
     file: Mutex<File>,
-    next_page_id: AtomicU64,
     _phantom: std::marker::PhantomData<P>,
 }
 
@@ -28,13 +25,8 @@ impl<P: Page> FileDiskManager<P> {
             .create(true)
             .open(path)?;
 
-        // infer next page id from number of existing pages
-        // TODO: consider storing next page id persistently for better crash recovery
-        let num_pages = file.metadata()?.len() as usize / PAGE_SIZE;
-
         Ok(FileDiskManager {
             file: Mutex::new(file),
-            next_page_id: AtomicU64::new(num_pages as u64),
             _phantom: std::marker::PhantomData,
         })
     }
@@ -75,11 +67,6 @@ impl<P: Page> DiskManager<P> for FileDiskManager<P> {
         let _ = file.write_all(&buf);
         let _ = file.flush();
     }
-
-    /// Assign a unique page id
-    fn allocate_page_id(&self) -> PageId {
-        self.next_page_id.fetch_add(1, std::sync::atomic::Ordering::SeqCst) as PageId
-    }
 }
 
 #[cfg(test)]
@@ -93,9 +80,7 @@ mod tests {
     fn test_open_new_file() {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
-        let disk_manager = FileDiskManager::<DataPage>::open(path).unwrap();
-
-        assert_eq!(disk_manager.next_page_id.load(std::sync::atomic::Ordering::SeqCst), 0);
+        FileDiskManager::<DataPage>::open(path).unwrap();
     }
 
     #[test]
@@ -109,20 +94,7 @@ mod tests {
             .open(path)
             .unwrap();
         file.write_all(&[0u8; PAGE_SIZE * 2]).unwrap();
-
-        let disk_manager = FileDiskManager::<DataPage>::open(path).unwrap();
-        assert_eq!(disk_manager.next_page_id.load(std::sync::atomic::Ordering::SeqCst), 2);
-    }
-
-    #[test]
-    fn test_allocate_page_id() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let path = temp_file.path();
-        let disk_manager = FileDiskManager::<DataPage>::open(path).unwrap();
-
-        assert_eq!(disk_manager.allocate_page_id(), 0);
-        assert_eq!(disk_manager.allocate_page_id(), 1);
-        assert_eq!(disk_manager.allocate_page_id(), 2);
+        FileDiskManager::<DataPage>::open(path).unwrap();
     }
 
     #[test]
@@ -131,12 +103,11 @@ mod tests {
         let path = temp_file.path();
         let disk_manager = FileDiskManager::open(path).unwrap();
 
-        let page_id = disk_manager.allocate_page_id();
-        let page = DataPage::new(page_id);
+        let page = DataPage::new(42);
         // Modify page content here if DataPage has methods to add data
 
         disk_manager.write_page(&page);
-        let read_page = disk_manager.read_page(page_id).unwrap();
+        let read_page = disk_manager.read_page(42).unwrap();
 
         assert_eq!(page.get_id(), read_page.get_id());
         // Add more assertions based on Page's content if modified
@@ -156,18 +127,14 @@ mod tests {
         let temp_file = NamedTempFile::new().unwrap();
         let path = temp_file.path();
 
-        let page_id;
-        {
-            let disk_manager = FileDiskManager::open(path).unwrap();
-            page_id = disk_manager.allocate_page_id();
-            let page = DataPage::new(page_id);
-            disk_manager.write_page(&page);
-        }
+        let disk_manager = FileDiskManager::open(path).unwrap();
+        let page = DataPage::new(42);
+        disk_manager.write_page(&page);
 
         // Re-open the file and check persistence
         let disk_manager = FileDiskManager::<DataPage>::open(path).unwrap();
-        let read_page = disk_manager.read_page(page_id);
+        let read_page = disk_manager.read_page(42);
         assert!(read_page.is_some());
-        assert_eq!(read_page.unwrap().get_id(), page_id);
+        assert_eq!(read_page.unwrap().get_id(), 42);
     }
 }

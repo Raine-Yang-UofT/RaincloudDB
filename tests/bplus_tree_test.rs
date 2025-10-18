@@ -1,8 +1,10 @@
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tempfile::NamedTempFile;
 use raincloud_db::storage::bplus_tree::BPlusTree;
 use raincloud_db::storage::bufferpool::BufferPool;
 use raincloud_db::storage::disk_manager::FileDiskManager;
+use raincloud_db::storage::free_list::FreeList;
+use raincloud_db::storage::page::header_page::HeaderPage;
 use raincloud_db::storage::page::index_page::{IndexPage, RecordId};
 use raincloud_db::storage::page::page::Page;
 use raincloud_db::storage::replacement_strategy::ReplacementStrategyType;
@@ -14,12 +16,15 @@ fn create_test_tree() -> BPlusTree {
     let path = temp_file.path();
     let disk_manager =
         Arc::new(FileDiskManager::<IndexPage>::open(path).unwrap());
+    let header_disk_manager = Arc::new(FileDiskManager::<HeaderPage>::open(temp_file.path()).unwrap());
+    let free_list = Mutex::new(FreeList::new(header_disk_manager, 0));
     let buffer_pool = Arc::new(BufferPool::new(
         100,
         ReplacementStrategyType::LRU,
         disk_manager,
+        free_list
     ));
-    let mut root_page = buffer_pool.create_page().unwrap();
+    let root_page = buffer_pool.create_page().unwrap();
     let root_id = root_page.read().get_id();
     BPlusTree::new(root_id, buffer_pool, 3, 3)
 }

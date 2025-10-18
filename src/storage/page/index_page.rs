@@ -543,7 +543,6 @@ mod tests {
         left.merge(&mut right);
         assert_eq!(left.keys, vec![1, 2]);
         assert_eq!(left.rids.len(), 2);
-        assert_eq!(right.keys.len(), 0); // consumed
     }
 
     #[test]

@@ -29,11 +29,11 @@ impl FreeList {
     }
 
     /// Allocate a page id from free list
-    pub fn allocate(&mut self) -> PageId {
+    pub fn allocate(&mut self, flush: bool) -> PageId {
         let start = { *self.head.lock().unwrap() };
         if start == 0 {
             // create first header
-            return self.create_and_allocate();
+            return self.create_and_allocate(flush);
         }
 
         let mut curr = start;
@@ -41,7 +41,10 @@ impl FreeList {
             let entry_arc = self.load_header(curr);
             let mut entry = entry_arc.lock().unwrap();
             if let Some(page_id) = entry.header.allocate_header() {
-                entry.is_dirty.store(true, Ordering::SeqCst);
+                if flush {
+                    self.disk.write_page(&entry.header);
+                }
+                entry.is_dirty.store(!flush, Ordering::SeqCst);
                 return page_id;
             }
 
@@ -55,11 +58,11 @@ impl FreeList {
         }
 
         // free list is full, create new header page
-        self.create_and_allocate()
+        self.create_and_allocate(flush)
     }
 
     /// Deallocate page_id back into free list
-    pub fn deallocate(&self, page_id: PageId) -> Result<(), String> {
+    pub fn deallocate(&self, page_id: PageId, flush: bool) -> Result<(), String> {
         let head = { *self.head.lock().unwrap() };
         if head == 0 {
             return Err("freelist empty, cannot deallocate".into());
@@ -72,7 +75,10 @@ impl FreeList {
             let offset = entry.header.get_offset();
             if page_id >= offset as PageId && page_id < (offset + FREE_HEADER_SIZE) as PageId {
                 entry.header.deallocate_header(page_id as usize);
-                entry.is_dirty = AtomicBool::new(true);
+                if flush {
+                    self.disk.write_page(&entry.header);
+                }
+                entry.is_dirty.store(!flush, Ordering::SeqCst);
 
                 // update cache
                 return Ok(());
@@ -88,6 +94,50 @@ impl FreeList {
         }
 
         Err(format!("no header found covering page id {}", page_id))
+    }
+
+    /// Create a new header page to head of list and allocate a page header
+    fn create_and_allocate(&mut self, flush: bool) -> PageId {
+        let mut head_guard = self.head.lock().unwrap();
+        let start = *head_guard;
+
+        if start == 0 {
+            // create first header page (id = 1)
+            let mut page = HeaderPage::new(1);
+            let allocated = page.allocate_header().expect("New header page should have empty slot");
+
+            // update head and cache with the mutated page
+            *head_guard = page.get_id();
+            self.cache.lock().unwrap().insert(page.get_id(), Arc::new(Mutex::new(HeaderFrame {
+                header: page,
+                is_dirty: AtomicBool::new(!flush),
+            })));
+
+            // optionally flush page
+            if flush {
+                self.disk.write_page(&page);
+            }
+
+            return allocated;
+        }
+
+        // append header page after existing start
+        let mut page = HeaderPage::new(start + 1);
+        let prev_page = self.load_header(start).lock().unwrap().header;
+        page.set_next(prev_page.get_id());
+        page.set_offset(prev_page.get_offset() + FREE_HEADER_SIZE);
+
+        // allocate on the page BEFORE inserting into cache
+        let allocated = page.allocate_header().expect("New header page should have empty slot");
+
+        // update head and insert the mutated page into cache using its real id
+        *head_guard = page.get_id();
+        self.cache.lock().unwrap().insert(page.get_id(), Arc::new(Mutex::new(HeaderFrame {
+            header: page,
+            is_dirty: AtomicBool::new(true),
+        })));
+
+        allocated
     }
 
     /// Flush dirty page headers to disk
@@ -110,45 +160,6 @@ impl FreeList {
                 page.is_dirty.store(false, Ordering::SeqCst);
             }
         }
-    }
-
-    /// Create a new header page to head of list and allocate a page header
-    fn create_and_allocate(&mut self) -> PageId {
-        let mut head_guard = self.head.lock().unwrap();
-        let start = *head_guard;
-
-        if start == 0 {
-            // create first header page (id = 1)
-            let mut page = HeaderPage::new(1);
-            let allocated = page.allocate_header().expect("New header page should have empty slot");
-
-            // update head and cache with the mutated page
-            *head_guard = page.get_id();
-            self.cache.lock().unwrap().insert(page.get_id(), Arc::new(Mutex::new(HeaderFrame {
-                header: page,
-                is_dirty: AtomicBool::new(true),
-            })));
-
-            return allocated;
-        }
-
-        // append header page after existing start
-        let mut page = HeaderPage::new(start + 1);
-        let prev_page = self.load_header(start).lock().unwrap().header;
-        page.set_next(prev_page.get_id());
-        page.set_offset(prev_page.get_offset() + FREE_HEADER_SIZE);
-
-        // allocate on the page BEFORE inserting into cache
-        let allocated = page.allocate_header().expect("New header page should have empty slot");
-
-        // update head and insert the mutated page into cache using its real id
-        *head_guard = page.get_id();
-        self.cache.lock().unwrap().insert(page.get_id(), Arc::new(Mutex::new(HeaderFrame {
-            header: page,
-            is_dirty: AtomicBool::new(true),
-        })));
-
-        allocated
     }
 
     /// Load header from cache or disk. Caller gets ownership of HeaderEntry.
@@ -184,6 +195,7 @@ impl FreeList {
 mod tests {
     use tempfile::NamedTempFile;
     use crate::storage::disk_manager::FileDiskManager;
+    use crate::types::{FLUSH, NO_FLUSH};
     use super::*;
 
     fn setup_freelist() -> FreeList {
@@ -196,8 +208,7 @@ mod tests {
     #[test]
     fn allocate_creates_first_header() {
         let mut freelist = setup_freelist();
-        freelist.allocate();
-        freelist.flush_all();
+        freelist.allocate(FLUSH);
 
         // After allocation, the disk should contain header page with id 1 (per FreeList implementation)
         let header = freelist.disk.read_page(1).expect("header page 1 should exist on disk");
@@ -207,21 +218,21 @@ mod tests {
     #[test]
     fn deallocate_on_empty_returns_err() {
         let freelist = setup_freelist();
-        let res = freelist.deallocate(10);
+        let res = freelist.deallocate(10, FLUSH);
         assert!(res.is_err(), "deallocate on empty freelist should return Err");
     }
 
     #[test]
     fn deallocate_and_reuse_page() {
         let mut freelist = setup_freelist();
-        let header = freelist.allocate();
+        let header = freelist.allocate(NO_FLUSH);
         freelist.flush_all();
 
         // deallocate header back
-        freelist.deallocate(header).expect("deallocate should succeed");
+        freelist.deallocate(header, FLUSH).expect("deallocate should succeed");
 
         // allocate again, should reuse the same page id
-        let header2 = freelist.allocate();
+        let header2 = freelist.allocate(FLUSH);
         assert_eq!(header, header2, "re-allocated header should be the same as deallocated one");
 
         // flush header to disk and read back to ensure no panics and data exists
@@ -239,12 +250,12 @@ mod tests {
         // fill the first header completely
         let mut allocated = vec![];
         for _ in 0..=(8 * FREE_HEADER_SIZE) {
-            let p = freelist.allocate();
+            let p = freelist.allocate(FLUSH);
             allocated.push(p);
         }
 
         // next allocation should force creation of a new header page
-        let extra = freelist.allocate();
+        let extra = freelist.allocate(FLUSH);
         freelist.flush_all();
 
         // creates new header page id = start + 1 (start == 1) -> page id 2
@@ -257,7 +268,7 @@ mod tests {
     fn flush_header_persist() {
         let mut freelist = setup_freelist();
 
-        let header = freelist.allocate();
+        freelist.allocate(NO_FLUSH);
         // flush a specific header page
         freelist.flush_header(1);
 

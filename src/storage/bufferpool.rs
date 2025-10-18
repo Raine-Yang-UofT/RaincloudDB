@@ -1,12 +1,13 @@
 use crate::storage::page::page::{Page, PageError};
-use crate::storage::disk_manager::{DiskManager};
+use crate::storage::disk_manager::DiskManager;
 use std::collections::HashMap;
 use std::sync::{RwLock, Arc, Condvar, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use crate::storage::free_list::FreeList;
 use crate::storage::replacement_strategy::{
     ReplacementStrategy, ReplacementStrategyType, replacement_strategy_factory
 };
-use crate::types::{PageId};
+use crate::types::{PageId, NO_FLUSH};
 
 #[derive(Debug)]
 pub struct BufferFrame<P: Page> {
@@ -61,6 +62,7 @@ pub struct BufferPool<P: Page> {
     capacity: usize,
     disk: Arc<dyn DiskManager<P>>,
     strategy: RwLock<Box<dyn ReplacementStrategy>>,
+    free_list: Mutex<FreeList>,
     evict_cv: (Mutex<()>, Condvar)  // condvar to notify an eviction is available
 }
 
@@ -69,6 +71,7 @@ impl<P: Page + 'static> BufferPool<P> {
         capacity: usize,
         strategy_type: ReplacementStrategyType,
         disk: Arc<dyn DiskManager<P>>,
+        free_list: Mutex<FreeList>,
     ) -> Self {
         let strategy = replacement_strategy_factory(
             strategy_type
@@ -79,6 +82,7 @@ impl<P: Page + 'static> BufferPool<P> {
             capacity,
             disk,
             strategy: RwLock::new(strategy),
+            free_list,
             evict_cv: (Mutex::new(()), Condvar::new())
         }
     }
@@ -135,7 +139,7 @@ impl<P: Page + 'static> BufferPool<P> {
 
     /// Create a new in-memory page
     pub fn create_page(self: &Arc<Self>) -> Result<PageGuard<P>, PageError> {
-        let page_id = self.disk.allocate_page_id();
+        let page_id = self.free_list.lock().unwrap().allocate(NO_FLUSH);
         let page = P::new(page_id);
 
         // evict if full
@@ -167,6 +171,11 @@ impl<P: Page + 'static> BufferPool<P> {
         }
         self.strategy.write().unwrap().update(page_id);
         Ok(PageGuard::new(frame, Arc::clone(self)))
+    }
+
+    // Mark a page as freed
+    pub fn free_page(&self, page_id: PageId, flush: bool) {
+        self.free_list.lock().unwrap().deallocate(page_id, flush).unwrap();
     }
 
     /// Flush a single dirty page in buffer pool
