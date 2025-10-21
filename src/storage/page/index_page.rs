@@ -102,6 +102,13 @@ impl IndexPage {
             .map(|i| &self.rids[i])
     }
 
+    /// Insert a new key into index page if not already exist
+    pub fn insert_key(&mut self, key: i64) {
+        if let Err(index) = self.keys.binary_search(&key) {
+            self.keys.insert(index, key);
+        }
+    }
+
     /// For leaf page: insert a key into index page
     pub fn insert_record(&mut self, key: i64, record: RecordId) {
         debug_assert_eq!(self.page_type, IndexType::Leaf);
@@ -120,7 +127,6 @@ impl IndexPage {
         let index = self.keys.binary_search(&key).unwrap_or_else(|pos| pos);
         self.keys.insert(index, key);
         self.children.insert(index + 1, child);
-        debug_assert_eq!(self.children.len(), self.keys.len() + 1);
     }
 
     /// Remove a key with associated child/record
@@ -162,29 +168,34 @@ impl IndexPage {
 
     /// Split page into two, return the key to be promoted and sibling page
     pub fn split(&mut self, new_id: PageId) -> (i64, Self) {
-        let mid = self.keys.len() / 2;
 
         match self.page_type {
             IndexType::Internal => {
-                let promoted_key = self.keys[mid];
-                let sibling_keys = self.keys.split_off(mid + 1);
+                let mid = self.keys.len() / 2;
+                let promoted_key = self.keys.remove(mid);
+                let sibling_keys = self.keys.split_off(mid);
                 let sibling_children = self.children.split_off(mid + 1);
 
                 let mut sibling = IndexPage::new(new_id, IndexType::Internal);
                 sibling.keys = sibling_keys;
                 sibling.children = sibling_children;
+
                 (promoted_key, sibling)
             }
             IndexType::Leaf => {
+                let mid = (self.keys.len() + 1) / 2;
                 let promoted_key = self.keys[mid];
+
                 let sibling_keys = self.keys.split_off(mid);
                 let sibling_rids = self.rids.split_off(mid);
 
                 let mut sibling = IndexPage::new(new_id, IndexType::Leaf);
                 sibling.keys = sibling_keys;
                 sibling.rids = sibling_rids;
+
                 sibling.next = self.next.take();
                 self.next = Some(sibling.id);
+
                 (promoted_key, sibling)
             }
         }
@@ -209,7 +220,7 @@ impl IndexPage {
 
     /// Redistribute keys between self and sibling and return the new separator key for parent
     /// Returns: (new_separator_key, borrowed_key) where new_separator_key should update parent
-    pub fn redistribute(&mut self, sibling: &mut Self, borrow_from_left: bool, min_keys: usize) -> Option<i64> {
+    pub fn redistribute(&mut self, sibling: &mut Self, old_parent_sep: i64, borrow_from_left: bool, min_keys: usize) -> Option<i64> {
         debug_assert_eq!(self.page_type, sibling.page_type);
 
         // check the sibling has enough keys to borrow from
@@ -223,20 +234,18 @@ impl IndexPage {
                     // take last key from left sibling
                     let key = sibling.keys.pop().unwrap();
                     let child = sibling.children.pop().unwrap();
-                    self.keys.insert(0, key);
+                    self.keys.insert(0, old_parent_sep);
                     self.children.insert(0, child);
 
-                    // the new separator for parent should be the last key in sibling
-                    sibling.keys.last().copied()
+                    Some(key)
                 } else {
                     // take first key from right sibling
                     let key = sibling.keys.remove(0);
                     let child = sibling.children.remove(0);
-                    self.keys.push(key);
+                    self.keys.push(old_parent_sep);
                     self.children.push(child);
 
-                    // the new separator for parent should be the first key in sibling
-                    sibling.keys.first().copied()
+                    Some(key)
                 }
             }
             IndexType::Leaf => {
@@ -248,7 +257,7 @@ impl IndexPage {
                     self.rids.insert(0, rid);
 
                     // for leaf nodes, the new separator is the first key in self (the borrowed one)
-                    self.keys.first().copied()
+                    Some(self.keys[0])
                 } else {
                     // take first key from right sibling
                     let key = sibling.keys.remove(0);
@@ -256,8 +265,8 @@ impl IndexPage {
                     self.keys.push(key);
                     self.rids.push(rid);
 
-                    // for leaf nodes borrowing from right, the new separator is the borrowed key
-                    sibling.keys.first().copied()
+                    // for leaf nodes borrowing from right, the new separator is the first key in sibling
+                    Some(sibling.keys.first().copied().unwrap_or(key))
                 }
             }
         }
@@ -553,7 +562,7 @@ mod tests {
         right.insert_record(10, create_record(2, 1));
 
         // borrow from left
-        let sep = right.redistribute(&mut left, true, 1);
+        let sep = right.redistribute(&mut left, 0, true, 1);
         assert!(sep.is_some());
         assert!(right.keys.first().unwrap() <= &10);
     }

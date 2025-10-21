@@ -56,16 +56,19 @@ impl BPlusTree {
 
     /// Insert (key, rid). Split pages if exceed bound
     pub fn insert(&mut self, key: i64, rid: RecordId) {
-
         let root_id = self.root;
+        self.print_tree();
+        println!("insert {key}");
 
         // early insert if tree is empty (leaf root)
+        let mut insertion_complete = false;
         with_write_pages!(self, [(root_id, root_page)], FLUSH, {
             if root_page.page_type == IndexType::Leaf && root_page.keys.is_empty() {
                 root_page.insert_record(key, rid);
-                return;
+                insertion_complete = true;
             }
         });
+        if insertion_complete { return }
 
         let mut stack = self.descend_to_leaf(key);
 
@@ -90,7 +93,6 @@ impl BPlusTree {
         // Step 2: propagate promotion upward
         while let Some((promoted_key, promoted_child)) = promote.take() {
             if let Some(parent_id) = stack.pop() {
-
                 with_write_pages!(self, [(parent_id, parent_page)], FLUSH, {
                     parent_page.insert_child(promoted_key, promoted_child);
 
@@ -107,7 +109,7 @@ impl BPlusTree {
                 });
             } else {
                 // no parent: create new root
-                let root_id ;
+                let root_id;
                 with_create_pages!(self, [(root_id, root_page)], FLUSH, {
                     root_page.page_type = IndexType::Internal;
                     root_page.get_children_mut().push(self.root);
@@ -121,166 +123,119 @@ impl BPlusTree {
     /// Delete given key. Use redistribution and merge.
     /// Return true if deletion succeed
     pub fn delete(&mut self, key: i64) -> bool {
-
+        self.print_tree();
+        println!("delete {key}");
         // if the tree is empty, there is no node to delete
         let root_id = self.root;
+        let mut tree_empty = false;
         with_read_pages!(self, [(root_id, root_page)], {
             if root_page.page_type == IndexType::Leaf && root_page.keys.is_empty() {
-                return false;
+                tree_empty = true;
             }
         });
+        if tree_empty { return false }
 
         // Step 1: delete from leaf
         let mut stack = self.descend_to_leaf(key);
         let leaf_id = stack.pop().unwrap();
+        let mut underflow_node = None;
+
+        let mut deletion_failed = false;
         with_write_pages!(self, [(leaf_id, leaf_page)], FLUSH, {
-            let removed = leaf_page.remove_key(key);
-            if !removed {
-                return false;
+            if !leaf_page.remove_key(key) {
+                deletion_failed = true;
             }
             // key successfully removed
-            if leaf_page.keys.len() >= self.leaf_min_keys {
-                return true;
+            if leaf_page.keys.len() < self.leaf_min_keys {
+                underflow_node = Some(leaf_id);
             }
         });
+        if deletion_failed { return false }
 
-        let mut child_id = leaf_id;
-        let mut is_leaf = true;    // is current layer the leaf layer
+        while let Some(child_id) = underflow_node.take() {
+            if let Some(parent_id) = stack.pop() {
+                with_write_pages!(self, [(parent_id, parent_page), (child_id, child_page)], FLUSH, {
+                    let index = parent_page.get_children()
+                        .iter()
+                        .position(|&id| id == child_id)
+                        .expect("Error: child not found in parent");
+                    let min_keys = if child_page.page_type == IndexType::Leaf { self.leaf_min_keys } else { self.internal_min_keys };
 
-        while let Some(parent_id) = stack.pop() {
-            with_write_pages!(self, [(parent_id, parent_page), (child_id, child_page)], FLUSH, {
-                let index = parent_page.get_children().iter()
-                    .position(|&id| id == child_id)
-                    .expect("Error: child not found in parent");
+                    // Step 2: Attempt to fix underflow with redistribution
+                    // try borrow from left sibling, update parent separator using returned key
+                    let left_sibling = if index > 0 { Some(parent_page.get_children()[index - 1]) } else { None };
+                    let right_sibling = if index < parent_page.get_children().len() - 1
+                        {Some(parent_page.get_children()[index + 1])} else { None };
 
-                // Step 2: Attempt to fix underflow with redistribution
-                // try borrow from left sibling, update parent separator using returned key
-                if index > 0 {
-                    let left_id = parent_page.get_children()[index - 1];
+                    // try to redistribute from left sibling
+                    let mut redistribute_succeed = false;
+                    if let Some(left_id) = left_sibling {
+                        with_write_pages!(self, [(left_id, left_page)], FLUSH, {
+                            let old_sep = parent_page.keys[index - 1];
+                            if let Some(new_sep) = child_page.redistribute(&mut left_page, old_sep, true, min_keys) {
+                                parent_page.keys[index - 1] = new_sep;
+                                redistribute_succeed = true;
+                            }
+                        });
+                    }
+                    // try to redistribute from right sibling
+                    if let Some(right_id) = right_sibling {
+                        with_write_pages!(self, [(right_id, right_page)], FLUSH, {
+                            let old_sep = parent_page.keys[index];
+                            if let Some(new_sep) = child_page.redistribute(&mut right_page, old_sep, false, min_keys) {
+                                parent_page.keys[index] = new_sep;
+                                redistribute_succeed = true;
+                            }
+                        });
+                    }
+                    if redistribute_succeed { return true }
 
-                    with_write_pages!(self, [(left_id, left_page)], FLUSH, {
-                        if let Some(new_separator) = child_page.redistribute(
-                            // redistribute succeed, set new separator to parent keys
-                            &mut left_page,
-                            true,
-                            if is_leaf { self.leaf_min_keys } else { self.internal_min_keys }
-                        ) {
-                            parent_page.keys[index - 1] = new_separator;
-                            return true;
-                        }
-                    });
-                } else if index < parent_page.get_children().len() - 1 {
-                    // try borrow from right sibling
-                    let right_id = parent_page.get_children()[index + 1];
+                    // Step 3: merge with sibling
+                    // Merge with left sibling if possible
+                    if let Some(left_id) = left_sibling {
+                        with_write_pages!(self, [(left_id, left_page)], FLUSH, {
+                            let sep_key = parent_page.keys.remove(index - 1); // remove parent separator
+                            left_page.merge(&mut child_page);
+                            // insert new parent separator
+                            if !(child_page.page_type == IndexType::Leaf) {
+                                left_page.insert_key(sep_key);
+                            }
+                            parent_page.get_children_mut().remove(index);
+                            self.buffer_pool.free_page(child_id, FLUSH);
+                            underflow_node = Some(parent_id);
+                        });
+                        continue;
+                    }
 
-                    with_write_pages!(self, [(right_id, right_page)], FLUSH, {
-                        if let Some(new_separator) = child_page.redistribute(
-                            &mut right_page,
-                            false,
-                            if is_leaf { self.leaf_min_keys } else { self.internal_min_keys }
-                        ) {
-                            parent_page.keys[index] = new_separator;
-                            return true;
-                        }
-                    });
-                }
-
-                // Step 3: merge with sibling
-                // attempt to merge with left sibling if exists, otherwise right sibling.
-                if index > 0 {
-                    let left_id = parent_page.get_children()[index - 1];
-
-                    with_write_pages!(self, [(left_id, left_page)], FLUSH, {
-                        // check if merge is possible (combined size doesn't exceed max)
-                        let max_keys = if is_leaf { self.leaf_max_keys } else { self.internal_max_keys };
-                        let combined_size = left_page.keys.len() + child_page.keys.len() +
-                                                    if is_leaf { 0 } else { 1 }; // +1 for separator in internal nodes
-                        if combined_size > max_keys {
-                            // the tree structure is invalid
-                            panic!("Unable to fix underflow: no redistribution or merge possible");
-                        }
-
-                        if is_leaf {
-                            // for leaf: remove separator, append child to left
-                            parent_page.keys.remove(index - 1);
-                        } else {
-                            // for internal: bring parent separator down to left_page before merging
-                            let separator = parent_page.keys.remove(index - 1);
-                            left_page.keys.push(separator);
-                        }
-
-                        // merge child to left page
-                        left_page.merge(&mut child_page);
-                        parent_page.get_children_mut().remove(index);
-                        // free the child page entirely
-                        self.buffer_pool.free_page(child_id, FLUSH);
-                    });
-                } else if index < parent_page.get_children().len() - 1 {
-                    // merge with right sibling
-                    let right_id = parent_page.get_children()[index + 1];
-                    with_write_pages!(self, [(right_id, right_page)], FLUSH, {
-                        // check if merge is possible (combined size doesn't exceed max)
-                        let max_keys = if is_leaf { self.leaf_max_keys } else { self.internal_max_keys };
-                        let combined_size = right_page.keys.len() + child_page.keys.len() +
-                                                    if is_leaf { 0 } else { 1 }; // +1 for separator in internal nodes
-                        if combined_size > max_keys {
-                            // the tree structure is invalid
-                            panic!("Unable to fix underflow: no redistribution or merge possible");
-                        }
-
-                        if is_leaf {
-                            // for leaf: remove separator between merged pages
-                            parent_page.keys.remove(index);
-                        } else {
-                            // for internal: bring parent separator down to child_page before merging
-                            let separator = parent_page.keys.remove(index);
-                            child_page.keys.push(separator);
-                        }
-
-                        // merge right into child page
-                        child_page.merge(&mut right_page);
-                        parent_page.get_children_mut().remove(index + 1);
-                        // free right page entirely
-                        self.buffer_pool.free_page(right_id, FLUSH);
-                    });
-                }
-
-                // propagate update if parent is underflow
-                child_id = parent_id;
-                let parent_min = match parent_page.page_type {
-                    IndexType::Leaf => self.leaf_min_keys,
-                    IndexType::Internal => self.internal_min_keys,
-                };
-                if parent_page.keys.len() >= parent_min {
-                    break;
-                }
-                is_leaf = false;
-            });
-        }
-
-        // root collapse: replace root with child if root only has one element
-        let root_id = self.root;
-        with_read_pages!(self, [(root_id, root_page)], {
-            match root_page.page_type {
-                IndexType::Internal => {
-                    // internal root should collapse when it has no keys (and thus only 1 child)
-                    if root_page.keys.is_empty() {
-                        debug_assert_eq!(root_page.get_children().len(), 1,
-                                "Internal root with no keys should have exactly 1 child");
-
+                    // Merge with right sibling
+                    if let Some(right_id) = right_sibling {
+                        with_write_pages!(self, [(right_id, right_page)], FLUSH, {
+                            let sep_key = parent_page.keys.remove(index); // remove parent separator
+                            // insert new parent separator
+                            if !(child_page.page_type == IndexType::Leaf) {
+                                child_page.insert_key(sep_key);
+                            }
+                            child_page.merge(&mut right_page);
+                            parent_page.get_children_mut().remove(index + 1);
+                            self.buffer_pool.free_page(right_id, FLUSH);
+                            underflow_node = Some(parent_id);
+                        });
+                        continue;
+                    }
+                });
+            }  else {
+                // Reached root, collapse if needed
+                let root_id = self.root;
+                with_read_pages!(self, [(root_id, root_page)], {
+                    if root_page.page_type == IndexType::Internal && root_page.get_children().len() == 1 {
                         let new_root = root_page.get_children()[0];
-                        // TODO: free old root page entirely
-                        self.buffer_pool.free_page(root_id, FLUSH);
                         self.root = new_root;
+                        self.buffer_pool.free_page(root_id, FLUSH);
                     }
-                }
-                IndexType::Leaf => {
-                    if root_page.keys.is_empty() {
-                        // do nothing here
-                    }
-                }
+                });
+                break;
             }
-        });
+        }
 
         true
     }
@@ -306,5 +261,30 @@ impl BPlusTree {
             });
         }
         stack
+    }
+
+    /// Debug Helper: Print the B+ tree in a readable form
+    pub fn print_tree(&self) {
+        println!("B+ Tree (root id: {})", self.root);
+        self.print_node(self.root, 0);
+    }
+
+    /// Recursive helper to print a node and its children
+    fn print_node(&self, page_id: PageId, level: usize) {
+        let indent = "  ".repeat(level);
+
+        with_read_pages!(self, [(page_id, page)], {
+            match page.page_type {
+                IndexType::Leaf => {
+                    println!("{}Leaf[{}] keys: {:?}", indent, page_id, page.keys);
+                }
+                IndexType::Internal => {
+                    println!("{}Internal[{}] keys: {:?}", indent, page_id, page.keys);
+                    for &child_id in page.get_children() {
+                        self.print_node(child_id, level + 1);
+                    }
+                }
+            }
+        });
     }
 }
