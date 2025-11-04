@@ -1,0 +1,31 @@
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TokenType {
+    // symbols
+    LParen,     // (
+    RParen,     // )
+    Comma,      // ,
+    Semicolon,  // ;
+    Equal,      // =
+
+    // data types
+    Int,
+    Char,
+
+    // literals
+    Identifier(String),
+    IntLiteral(i32),
+    StringLiteral(String),
+
+    // keywords
+    Create, Database, Drop, Table, Insert, Into,
+    Values, Update, Set, Where, Select, From,
+
+    // special
+    Eof,
+}
+
+pub struct Token {
+    pub token_type: TokenType,
+    pub lexeme: String,
+    pub line: usize, // line number for error handling
+}
