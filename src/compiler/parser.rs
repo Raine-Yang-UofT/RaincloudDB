@@ -36,7 +36,8 @@ impl Parser {
 
     /**
     statement := create_database_stmt
-    | drop_database_stmt
+    | drop_stmt
+    | use_database_stmt
     | create_table_stmt
     | drop_table_stmt
     | insert_stmt
@@ -47,6 +48,7 @@ impl Parser {
         match self.peek().token_type {
             TokenType::Create => self.parse_create(),
             TokenType::Drop   => self.parse_drop(),
+            TokenType::Use    => self.parse_use(),
             TokenType::Insert => self.parse_insert(),
             TokenType::Update => self.parse_update(),
             TokenType::Select => self.parse_select(),
@@ -55,8 +57,8 @@ impl Parser {
     }
 
     /**
-    create_stmt := CREATE DATABASE identifier;
-    create_stmt := CREATE TABLE identifier ( column_def_stmt (, column_def_stmt)* );
+    create_database_stmt := CREATE DATABASE identifier;
+    create_table_stmt := CREATE TABLE identifier ( column_def_stmt (, column_def_stmt)* );
      */
     fn parse_create(&mut self) -> ParseResult<Statement> {
         self.consume(TokenType::Create)?;
@@ -88,8 +90,8 @@ impl Parser {
     }
 
     /**
-    drop_stmt := DROP DATABASE identifier;
-    drop_stmt := DROP TABLE identifier;
+    drop_database_stmt := DROP DATABASE identifier;
+    drop_table_stmt := DROP TABLE identifier;
     */
     fn parse_drop(&mut self) -> ParseResult<Statement> {
         self.consume(TokenType::Drop)?;
@@ -109,6 +111,16 @@ impl Parser {
             },
             _ => Err(format!("Expected DATABASE or TABLE at line {}", token.line).into()),
         }
+    }
+
+    /**
+    use_database_stmt := USE identifier ;
+    */
+    fn parse_use(&mut self) -> ParseResult<Statement> {
+        self.consume(TokenType::Use)?;
+        let name = self.consume_identifier()?;
+        self.consume(TokenType::Semicolon)?;
+        Ok(Statement::UseDatabase { name })
     }
 
     /**
@@ -320,6 +332,16 @@ mod tests {
         match &stmts[0] {
             Statement::DropDatabase { name } => assert_eq!(name, "testdb"),
             _ => panic!("Expected DropDatabase statement"),
+        }
+    }
+
+    #[test]
+    fn test_use_database() {
+        let sql = "USE testdb;";
+        let stmts = parse_sql(sql);
+        match &stmts[0] {
+            Statement::UseDatabase { name } => assert_eq!(name, "testdb"),
+            _ => panic!("Expected UseDatabase statement"),
         }
     }
 

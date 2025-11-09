@@ -22,7 +22,7 @@ fn setup_buffer_pool(capacity: usize) -> (Arc<BufferPool<DataPage>>, NamedTempFi
     let path = temp_file.path();
     let disk_manager = Arc::new(FileDiskManager::<DataPage>::open(path).unwrap());
     let header_disk_manager = Arc::new(FileDiskManager::<HeaderPage>::open(path).unwrap());
-    let free_list = Mutex::new(FreeList::new(header_disk_manager, 0));
+    let free_list = Arc::new(Mutex::new(FreeList::new(header_disk_manager, 0)));
     let buffer_pool = Arc::new(BufferPool::new(
         capacity,
         ReplacementStrategyType::LRU,
@@ -58,7 +58,7 @@ fn test_dirty_page_persistence() {
     // Create new pool to test persistence
     let disk_manager = Arc::new(FileDiskManager::<DataPage>::open(temp_file.path()).unwrap());
     let header_disk_manager = Arc::new(FileDiskManager::<HeaderPage>::open(temp_file.path()).unwrap());
-    let free_list = Mutex::new(FreeList::new(header_disk_manager, 0));
+    let free_list = Arc::new(Mutex::new(FreeList::new(header_disk_manager, 0)));
     let new_pool = BufferPool::new(2, ReplacementStrategyType::LRU, disk_manager, free_list);
 
     // Should be able to fetch from disk without error
@@ -83,7 +83,7 @@ fn test_flush_page() {
     // Verify persistence
     let disk_manager = Arc::new(FileDiskManager::<DataPage>::open(temp_file.path()).unwrap());
     let header_disk_manager = Arc::new(FileDiskManager::<HeaderPage>::open(temp_file.path()).unwrap());
-    let free_list = Mutex::new(FreeList::new(header_disk_manager, 0));
+    let free_list = Arc::new(Mutex::new(FreeList::new(header_disk_manager, 0)));
     let new_pool = Arc::new(BufferPool::new(5, ReplacementStrategyType::LRU, disk_manager, free_list));
 
     // All pages should be accessible
@@ -108,7 +108,7 @@ fn test_flush_all() {
     // Verify persistence
     let disk_manager = Arc::new(FileDiskManager::<DataPage>::open(temp_file.path()).unwrap());
     let header_disk_manager = Arc::new(FileDiskManager::<HeaderPage>::open(temp_file.path()).unwrap());
-    let free_list = Mutex::new(FreeList::new(header_disk_manager, 0));
+    let free_list = Arc::new(Mutex::new(FreeList::new(header_disk_manager, 0)));
     let new_pool = Arc::new(BufferPool::new(5, ReplacementStrategyType::LRU, disk_manager, free_list));
 
     // All pages should be accessible

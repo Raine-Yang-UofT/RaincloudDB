@@ -3,6 +3,7 @@ pub enum Statement {
 
     CreateDatabase { name: String },
     DropDatabase { name: String },
+    UseDatabase { name: String },
 
     CreateTable {
         name: String,

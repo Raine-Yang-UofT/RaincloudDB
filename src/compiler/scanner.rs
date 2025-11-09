@@ -96,6 +96,7 @@ impl Scanner {
             "FROM" => TokenType::From,
             "INT" => TokenType::Int,
             "CHAR" => TokenType::Char,
+            "USE" => TokenType::Use,
             _ => TokenType::Identifier(text),
         };
 
@@ -197,13 +198,16 @@ mod tests {
 
     #[test]
     fn test_create_database() {
-        let tokens = collect_tokens("CREATE DATABASE test_db;");
+        let tokens = collect_tokens("CREATE DATABASE test_db; USE test_db;");
 
         assert_eq!(
             tokens,
             vec![
                 TokenType::Create,
                 TokenType::Database,
+                TokenType::Identifier("test_db".to_string()),
+                TokenType::Semicolon,
+                TokenType::Use,
                 TokenType::Identifier("test_db".to_string()),
                 TokenType::Semicolon,
                 TokenType::Eof,

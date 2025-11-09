@@ -34,6 +34,14 @@ Delete an existing database. Removes catalog and stored tables.
 DROP DATABASE database_name;
 ```
 
+#### USE DATABASE
+
+Connect to an existing database. Subsequent queries will run on this database.
+
+```sql
+USE database_name;
+```
+
 ### DDL: Schema Definition
 #### CREATE TABLE
 

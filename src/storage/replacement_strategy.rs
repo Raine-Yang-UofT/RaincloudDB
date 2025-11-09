@@ -6,6 +6,7 @@ pub trait ReplacementStrategy: Send + Sync {
     fn get_evict<'a>(&'a mut self) -> Box<dyn Iterator<Item = PageId> + 'a>;
 }
 
+#[derive(Clone)]
 pub enum ReplacementStrategyType {
     LRU
 }

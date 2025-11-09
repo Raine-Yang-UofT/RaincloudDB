@@ -62,7 +62,7 @@ pub struct BufferPool<P: Page> {
     capacity: usize,
     disk: Arc<dyn DiskManager<P>>,
     strategy: RwLock<Box<dyn ReplacementStrategy>>,
-    free_list: Mutex<FreeList>,
+    free_list: Arc<Mutex<FreeList>>,
     evict_cv: (Mutex<()>, Condvar)  // condvar to notify an eviction is available
 }
 
@@ -71,7 +71,7 @@ impl<P: Page + 'static> BufferPool<P> {
         capacity: usize,
         strategy_type: ReplacementStrategyType,
         disk: Arc<dyn DiskManager<P>>,
-        free_list: Mutex<FreeList>,
+        free_list: Arc<Mutex<FreeList>>,
     ) -> Self {
         let strategy = replacement_strategy_factory(
             strategy_type
