@@ -96,7 +96,9 @@ impl Scanner {
             "FROM" => TokenType::From,
             "INT" => TokenType::Int,
             "CHAR" => TokenType::Char,
-            "USE" => TokenType::Use,
+            "CONNECT" => TokenType::Connect,
+            "TO" => TokenType::To,
+            "DISCONNECT" => TokenType::Disconnect,
             _ => TokenType::Identifier(text),
         };
 

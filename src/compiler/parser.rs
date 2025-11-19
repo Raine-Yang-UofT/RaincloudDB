@@ -37,7 +37,8 @@ impl Parser {
     /**
     statement := create_database_stmt
     | drop_stmt
-    | use_database_stmt
+    | connect_database_stmt
+    | disconnect_database_stmt
     | create_table_stmt
     | drop_table_stmt
     | insert_stmt
@@ -48,7 +49,8 @@ impl Parser {
         match self.peek().token_type {
             TokenType::Create => self.parse_create(),
             TokenType::Drop   => self.parse_drop(),
-            TokenType::Use    => self.parse_use(),
+            TokenType::Connect => self.parse_connect(),
+            TokenType::Disconnect => self.parse_disconnect(),
             TokenType::Insert => self.parse_insert(),
             TokenType::Update => self.parse_update(),
             TokenType::Select => self.parse_select(),
@@ -114,13 +116,23 @@ impl Parser {
     }
 
     /**
-    use_database_stmt := USE identifier ;
+    connect_database_stmt := CONNECT TO identifier ;
     */
-    fn parse_use(&mut self) -> ParseResult<Statement> {
-        self.consume(TokenType::Use)?;
+    fn parse_connect(&mut self) -> ParseResult<Statement> {
+        self.consume(TokenType::Connect)?;
+        self.consume(TokenType::To)?;
         let name = self.consume_identifier()?;
         self.consume(TokenType::Semicolon)?;
-        Ok(Statement::UseDatabase { name })
+        Ok(Statement::ConnectDatabase { name })
+    }
+
+    /**
+    disconnect_database_stmt := DISCONNECT;
+    */
+    fn parse_disconnect(&mut self) -> ParseResult<Statement> {
+        self.consume(TokenType::Disconnect)?;
+        self.consume(TokenType::Semicolon)?;
+        Ok(Statement::DisconnectDatabase { })
     }
 
     /**

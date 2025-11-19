@@ -34,12 +34,15 @@ Delete an existing database. Removes catalog and stored tables.
 DROP DATABASE database_name;
 ```
 
-#### USE DATABASE
+#### CONNECT TO/DISCONNECT DATABASE
 
 Connect to an existing database. Subsequent queries will run on this database.
 
+Disconnect the current database session.
+
 ```sql
-USE database_name;
+CONNECT TO database_name;
+DISCONNECT;
 ```
 
 ### DDL: Schema Definition

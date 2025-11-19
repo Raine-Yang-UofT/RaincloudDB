@@ -1,0 +1,7 @@
+{
+  "db_dir": "",
+  "bufferpool_capacity": 32,
+  "bufferpool_replacement_strategy": "LRU",
+  "header_file_name": "header.rcdb",
+  "data_file_name": "data.rcdb"
+}

@@ -31,12 +31,22 @@ fn test_drop_database() {
 }
 
 #[test]
-fn test_use_database() {
-    let sql = "USE testdb;";
+fn test_connect_database() {
+    let sql = "CONNECT TO testdb;";
     let stmts = parse_sql(sql);
     match &stmts[0] {
-        Statement::UseDatabase { name } => assert_eq!(name, "testdb"),
-        _ => panic!("Expected UseDatabase statement"),
+        Statement::ConnectDatabase { name } => assert_eq!(name, "testdb"),
+        _ => panic!("Expected ConnectDatabase statement"),
+    }
+}
+
+#[test]
+fn test_disconnect_database() {
+    let sql = "DISCONNECT;";
+    let stmts = parse_sql(sql);
+    match &stmts[0] {
+        Statement::DisconnectDatabase { } => assert!(true),
+        _ => panic!("Expected DisconnectDatabase statement"),
     }
 }
 

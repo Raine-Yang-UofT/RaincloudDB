@@ -1,4 +1,5 @@
 use linked_hash_map::LinkedHashMap;
+use serde::{Deserialize, Serialize};
 use crate::types::PageId;
 
 pub trait ReplacementStrategy: Send + Sync {
@@ -6,7 +7,7 @@ pub trait ReplacementStrategy: Send + Sync {
     fn get_evict<'a>(&'a mut self) -> Box<dyn Iterator<Item = PageId> + 'a>;
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum ReplacementStrategyType {
     LRU
 }

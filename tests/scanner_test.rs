@@ -33,7 +33,7 @@ fn run_and_catch<F: FnOnce() -> () + panic::UnwindSafe>(f: F) -> String {
 
 #[test]
 fn test_create_database() {
-    let tokens = collect_tokens("CREATE DATABASE test_db; USE test_db;");
+    let tokens = collect_tokens("CREATE DATABASE test_db;");
 
     assert_eq!(
         tokens,
@@ -42,8 +42,23 @@ fn test_create_database() {
             TokenType::Database,
             TokenType::Identifier("test_db".to_string()),
             TokenType::Semicolon,
-            TokenType::Use,
+            TokenType::Eof,
+        ]
+    );
+}
+
+#[test]
+fn test_connect_database() {
+    let tokens = collect_tokens("CONNECT TO test_db; DISCONNECT;");
+
+    assert_eq!(
+        tokens,
+        vec![
+            TokenType::Connect,
+            TokenType::To,
             TokenType::Identifier("test_db".to_string()),
+            TokenType::Semicolon,
+            TokenType::Disconnect,
             TokenType::Semicolon,
             TokenType::Eof,
         ]

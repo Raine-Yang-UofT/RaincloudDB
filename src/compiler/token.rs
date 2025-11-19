@@ -18,7 +18,8 @@ pub enum TokenType {
 
     // keywords
     Create, Database, Drop, Table, Insert, Into,
-    Values, Update, Set, Where, Select, From, Use,
+    Values, Update, Set, Where, Select, From,
+    Connect, To, Disconnect,
 
     // special
     Eof,
