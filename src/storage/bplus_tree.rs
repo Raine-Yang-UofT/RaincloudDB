@@ -41,7 +41,7 @@ impl BPlusTree {
     pub fn search(&mut self, key: &i64) -> Option<RecordId> {
         let mut curr_id = self.root;
         loop {
-            with_read_pages!(self, [(curr_id, curr_page)], {
+            with_read_pages!(self.buffer_pool, [(curr_id, curr_page)], {
                 match curr_page.page_type {
                     IndexType::Internal => {
                         curr_id = curr_page.search_child(key)?;
@@ -62,7 +62,7 @@ impl BPlusTree {
 
         // early insert if tree is empty (leaf root)
         let mut insertion_complete = false;
-        with_write_pages!(self, [(root_id, root_page)], FLUSH, {
+        with_write_pages!(self.buffer_pool, [(root_id, root_page)], FLUSH, {
             if root_page.page_type == IndexType::Leaf && root_page.keys.is_empty() {
                 root_page.insert_record(key, rid);
                 insertion_complete = true;
@@ -76,13 +76,13 @@ impl BPlusTree {
         let leaf_id = stack.pop().expect("Error: leaf node not found");
         let mut promote: Option<(i64, PageId)> = None;
 
-        with_write_pages!(self, [(leaf_id, leaf_page)], FLUSH, {
+        with_write_pages!(self.buffer_pool, [(leaf_id, leaf_page)], FLUSH, {
             leaf_page.insert_record(key, rid);
 
             // split leaf if overflow
             if leaf_page.keys.len() > self.leaf_max_keys {
                 let sib_id;
-                with_create_pages!(self, [(sib_id, sib_page)], FLUSH, {
+                with_create_pages!(self.buffer_pool, [(sib_id, sib_page)], FLUSH, {
                     let (promoted_key, new_sibling_page) = leaf_page.split(sib_id);
                     *sib_page = new_sibling_page;
                     promote = Some((promoted_key, sib_id));
@@ -93,13 +93,13 @@ impl BPlusTree {
         // Step 2: propagate promotion upward
         while let Some((promoted_key, promoted_child)) = promote.take() {
             if let Some(parent_id) = stack.pop() {
-                with_write_pages!(self, [(parent_id, parent_page)], FLUSH, {
+                with_write_pages!(self.buffer_pool, [(parent_id, parent_page)], FLUSH, {
                     parent_page.insert_child(promoted_key, promoted_child);
 
                     // split parent if exceeds capacity
                     if parent_page.keys.len() > self.internal_max_keys {
                         let sib_id;
-                        with_create_pages!(self, [(sib_id, sib_page)], FLUSH, {
+                        with_create_pages!(self.buffer_pool, [(sib_id, sib_page)], FLUSH, {
                             let (promoted_key, sibling_page) = parent_page.split(sib_id);
                             *sib_page = sibling_page;
                             sib_page.page_type = IndexType::Internal;
@@ -110,7 +110,7 @@ impl BPlusTree {
             } else {
                 // no parent: create new root
                 let root_id;
-                with_create_pages!(self, [(root_id, root_page)], FLUSH, {
+                with_create_pages!(self.buffer_pool, [(root_id, root_page)], FLUSH, {
                     root_page.page_type = IndexType::Internal;
                     root_page.get_children_mut().push(self.root);
                     root_page.insert_child(promoted_key, promoted_child);
@@ -128,7 +128,7 @@ impl BPlusTree {
         // if the tree is empty, there is no node to delete
         let root_id = self.root;
         let mut tree_empty = false;
-        with_read_pages!(self, [(root_id, root_page)], {
+        with_read_pages!(self.buffer_pool, [(root_id, root_page)], {
             if root_page.page_type == IndexType::Leaf && root_page.keys.is_empty() {
                 tree_empty = true;
             }
@@ -141,7 +141,7 @@ impl BPlusTree {
         let mut underflow_node = None;
 
         let mut deletion_failed = false;
-        with_write_pages!(self, [(leaf_id, leaf_page)], FLUSH, {
+        with_write_pages!(self.buffer_pool, [(leaf_id, leaf_page)], FLUSH, {
             if !leaf_page.remove_key(key) {
                 deletion_failed = true;
             }
@@ -154,7 +154,7 @@ impl BPlusTree {
 
         while let Some(child_id) = underflow_node.take() {
             if let Some(parent_id) = stack.pop() {
-                with_write_pages!(self, [(parent_id, parent_page), (child_id, child_page)], FLUSH, {
+                with_write_pages!(self.buffer_pool, [(parent_id, parent_page), (child_id, child_page)], FLUSH, {
                     let index = parent_page.get_children()
                         .iter()
                         .position(|&id| id == child_id)
@@ -170,7 +170,7 @@ impl BPlusTree {
                     // try to redistribute from left sibling
                     let mut redistribute_succeed = false;
                     if let Some(left_id) = left_sibling {
-                        with_write_pages!(self, [(left_id, left_page)], FLUSH, {
+                        with_write_pages!(self.buffer_pool, [(left_id, left_page)], FLUSH, {
                             let old_sep = parent_page.keys[index - 1];
                             if let Some(new_sep) = child_page.redistribute(&mut left_page, old_sep, true, min_keys) {
                                 parent_page.keys[index - 1] = new_sep;
@@ -180,7 +180,7 @@ impl BPlusTree {
                     }
                     // try to redistribute from right sibling
                     if let Some(right_id) = right_sibling {
-                        with_write_pages!(self, [(right_id, right_page)], FLUSH, {
+                        with_write_pages!(self.buffer_pool, [(right_id, right_page)], FLUSH, {
                             let old_sep = parent_page.keys[index];
                             if let Some(new_sep) = child_page.redistribute(&mut right_page, old_sep, false, min_keys) {
                                 parent_page.keys[index] = new_sep;
@@ -193,7 +193,7 @@ impl BPlusTree {
                     // Step 3: merge with sibling
                     // Merge with left sibling if possible
                     if let Some(left_id) = left_sibling {
-                        with_write_pages!(self, [(left_id, left_page)], FLUSH, {
+                        with_write_pages!(self.buffer_pool, [(left_id, left_page)], FLUSH, {
                             let sep_key = parent_page.keys.remove(index - 1); // remove parent separator
                             left_page.merge(&mut child_page);
                             // insert new parent separator
@@ -209,7 +209,7 @@ impl BPlusTree {
 
                     // Merge with right sibling
                     if let Some(right_id) = right_sibling {
-                        with_write_pages!(self, [(right_id, right_page)], FLUSH, {
+                        with_write_pages!(self.buffer_pool, [(right_id, right_page)], FLUSH, {
                             let sep_key = parent_page.keys.remove(index); // remove parent separator
                             // insert new parent separator
                             if !(child_page.page_type == IndexType::Leaf) {
@@ -226,7 +226,7 @@ impl BPlusTree {
             }  else {
                 // Reached root, collapse if needed
                 let root_id = self.root;
-                with_read_pages!(self, [(root_id, root_page)], {
+                with_read_pages!(self.buffer_pool, [(root_id, root_page)], {
                     if root_page.page_type == IndexType::Internal && root_page.get_children().len() == 1 {
                         let new_root = root_page.get_children()[0];
                         self.root = new_root;
@@ -246,7 +246,7 @@ impl BPlusTree {
         let mut curr_id = self.root;
 
         loop {
-            with_read_pages!(self, [(curr_id, curr_page)], {
+            with_read_pages!(self.buffer_pool, [(curr_id, curr_page)], {
                 match curr_page.page_type {
                     IndexType::Internal => {
                         let child = curr_page.search_child(&key).expect("Error: internal search child failed");
@@ -273,7 +273,7 @@ impl BPlusTree {
     fn print_node(&self, page_id: PageId, level: usize) {
         let indent = "  ".repeat(level);
 
-        with_read_pages!(self, [(page_id, page)], {
+        with_read_pages!(self.buffer_pool, [(page_id, page)], {
             match page.page_type {
                 IndexType::Leaf => {
                     println!("{}Leaf[{}] keys: {:?}", indent, page_id, page.keys);
