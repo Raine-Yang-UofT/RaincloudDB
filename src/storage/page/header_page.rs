@@ -34,19 +34,21 @@ impl HeaderPage {
 
     /// Allocate a page header, mark the location as used
     /// Return None if the page is full
+    /// The page header index starts from 1
     pub fn allocate_header(&mut self) -> Option<PageId> {
         if let Some(index) = self.get_slot() {
             bitmap_set!(self.free_slot, index, true);
-            Some(((self.offset as usize) + index) as PageId)
+            Some(((self.offset as usize) + index + 1) as PageId)
         } else {
             None
         }
     }
 
     /// Deallocate a page header, mark the location as unused
+    /// The page header index starts from 1
     pub fn deallocate_header(&mut self, page_id: usize) {
-        if bitmap_get!(self.free_slot, page_id - self.offset as usize) == true {
-            bitmap_set!(self.free_slot, page_id - self.offset as usize, false)
+        if bitmap_get!(self.free_slot, page_id - self.offset as usize - 1) == true {
+            bitmap_set!(self.free_slot, page_id - self.offset as usize - 1, false)
         } else {
             panic!("attempt to free a header that is already freed");
         }
@@ -204,24 +206,24 @@ mod tests {
         // allocate first free slot
         let alloc1 = page.allocate_header().expect("should allocate a slot");
         // the first free slot index is 0, so global index = offset + 0
-        assert_eq!(alloc1, 100);
+        assert_eq!(alloc1, 101);
 
         // allocate second free slot
         let alloc2 = page.allocate_header().expect("should allocate a slot");
-        assert_eq!(alloc2, 101);
+        assert_eq!(alloc2, 102);
 
         // deallocate the first slot
-        page.deallocate_header(100);
+        page.deallocate_header(101);
         // bit should now be cleared
-        assert!(!bitmap_get!(page.free_slot, 100));
+        assert!(!bitmap_get!(page.free_slot, 101));
 
         // deallocate the second slot
-        page.deallocate_header(101);
-        assert!(!bitmap_get!(page.free_slot, 101));
+        page.deallocate_header(102);
+        assert!(!bitmap_get!(page.free_slot, 102));
 
         // allocating again should return the first slot again
         let alloc3 = page.allocate_header().expect("should allocate a slot");
-        assert_eq!(alloc3, 100);
+        assert_eq!(alloc3, 101);
     }
 
     #[test]
@@ -267,7 +269,7 @@ mod tests {
     fn test_partial_free_slots() {
         let mut page = HeaderPage::new(11);
 
-        // set first byte to 0b1111_1110 so bit 0 is free (0 means free in your get_slot)
+        // set first byte to 0b1111_1110 so bit 0 is free (0 means free in get_slot)
         page.free_slot[0] = 0b1111_1110;
         // rest are occupied
         for b in page.free_slot.iter_mut().skip(1) {
