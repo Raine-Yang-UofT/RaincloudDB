@@ -8,7 +8,7 @@ const SLOT_ID_SIZE: usize = size_of::<SlotId>();
 const FREE_START_SIZE: usize = size_of::<u16>();
 const VALID_SLOT_BITMAP_SIZE: usize = 32;
 pub const fn get_page_header_size() -> usize {
-    PAGE_ID_SIZE + SLOT_ID_SIZE + FREE_START_SIZE + VALID_SLOT_BITMAP_SIZE + MAX_SLOTS * SLOT_SIZE
+    2 * PAGE_ID_SIZE + SLOT_ID_SIZE + FREE_START_SIZE + VALID_SLOT_BITMAP_SIZE + MAX_SLOTS * SLOT_SIZE
 }
 pub const PAYLOAD_SIZE: usize = PAGE_SIZE - get_page_header_size();
 
@@ -21,6 +21,7 @@ pub struct Slot {
 #[derive(Copy, Clone, Debug)]
 pub struct DataPage {
     id: PageId,
+    next_id: PageId, // next page id in table heap file, 0 when no next id exists
     next_slot: SlotId, // next available slot index, grow from top to bottom
     free_start: u16, // offset of free space, grow from bottom to top
     slots: [Option<Slot>; MAX_SLOTS], // page slot array
@@ -33,6 +34,7 @@ impl Page for DataPage {
     fn new(id: PageId) -> Self {
         Self {
             id,
+            next_id: 0,
             data: [0u8; PAYLOAD_SIZE],
             slots: [None; MAX_SLOTS],
             next_slot: 0,
@@ -50,6 +52,8 @@ impl Page for DataPage {
 
         // serialize page header
         buf[cursor..cursor + PAGE_ID_SIZE].copy_from_slice(&self.id.to_le_bytes());
+        cursor += PAGE_ID_SIZE;
+        buf[cursor..cursor + PAGE_ID_SIZE].copy_from_slice(&self.next_id.to_le_bytes());
         cursor += PAGE_ID_SIZE;
         buf[cursor..cursor + SLOT_ID_SIZE].copy_from_slice(&self.next_slot.to_le_bytes());
         cursor += SLOT_ID_SIZE;
@@ -82,6 +86,8 @@ impl Page for DataPage {
         // deserialize page header
         let id = PageId::from_le_bytes(buf[cursor..cursor + PAGE_ID_SIZE].try_into().ok()?);
         cursor += PAGE_ID_SIZE;
+        let next_id = PageId::from_le_bytes(buf[cursor..cursor + PAGE_ID_SIZE].try_into().ok()?);
+        cursor += PAGE_ID_SIZE;
         let next_slot = SlotId::from_le_bytes(buf[cursor..cursor + SLOT_ID_SIZE].try_into().ok()?);
         cursor += SLOT_ID_SIZE;
         let free_start = u16::from_le_bytes(buf[cursor..cursor + FREE_START_SIZE].try_into().ok()?);
@@ -111,6 +117,7 @@ impl Page for DataPage {
 
         Some(DataPage {
             id,
+            next_id,
             next_slot,
             free_start,
             valid_slots,
@@ -136,6 +143,12 @@ impl Page for DataPage {
 }
 
 impl DataPage {
+
+    #[inline]
+    fn get_next_id(&self) -> PageId { self.next_id }
+
+    #[inline]
+    fn set_next_id(&mut self, id: PageId) { self.next_id = id; }
 
     /// Insert record to page
     pub fn insert_record(&mut self, record: &[u8]) -> Option<SlotId> {
@@ -380,6 +393,7 @@ mod tests {
     fn test_serialize_deserialize() {
         let mut page = DataPage {
             id: 42,
+            next_id: 0,
             next_slot: 0,
             free_start: 800,
             valid_slots: [0u8; VALID_SLOT_BITMAP_SIZE],
@@ -414,6 +428,7 @@ mod tests {
     fn test_serialize_with_empty_slots() {
         let page = DataPage {
             id: 99,
+            next_id: 100,
             next_slot: 42,
             free_start: 1000,
             valid_slots: [0u8; VALID_SLOT_BITMAP_SIZE],

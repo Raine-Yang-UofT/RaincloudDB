@@ -167,7 +167,6 @@ fn test_concurrent_access_multiple_threads() {
 
         handles.push(thread::spawn(move || {
             let mut page_ids = vec![];
-
             // Each thread creates and accesses pages
             for i in 0..pages_per_thread {
                 let page_id ;
@@ -200,6 +199,7 @@ fn test_concurrent_access_multiple_threads() {
 
     // All pages should be accessible
     let mut accessible_count = 0;
+    let pool = Arc::clone(&pool);
     for &page_id in &all_page_ids {
         with_read_pages!(pool, [(page_id, _page)], {
             accessible_count += 1;

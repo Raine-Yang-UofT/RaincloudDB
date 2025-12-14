@@ -6,7 +6,7 @@ pub mod page;
 pub mod free_list;
 
 use std::io;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use serde::{Serialize, Deserialize};
 use bufferpool::BufferPool;
@@ -15,30 +15,13 @@ use free_list::FreeList;
 use page::data_page::DataPage;
 use page::header_page::HeaderPage;
 use replacement_strategy::ReplacementStrategyType;
-
+use crate::types::{DATA_FILE, HEADER_FILE};
 
 #[derive(Clone, Serialize, Deserialize)]
 pub struct StorageConfig {
-    pub db_dir: PathBuf,
+    pub database_dir: PathBuf,
     pub bufferpool_capacity: usize,
     pub bufferpool_replacement_strategy: ReplacementStrategyType,
-    pub header_file_name: String,
-    pub data_file_name: String,
-}
-
-impl StorageConfig {
-    /// Load database config
-    pub fn load_config<P: AsRef<Path>>(path: P) -> io::Result<Self> {
-        let text = std::fs::read_to_string(path)?;
-        let cfg: StorageConfig = serde_json::from_str(&text)?;
-        Ok(cfg)
-    }
-
-    /// Save current database config
-    pub fn save_config(&self, path: &Path) -> io::Result<()> {
-        let text = serde_json::to_string_pretty(self)?;
-        std::fs::write(path, text)
-    }
 }
 
 pub struct StorageEngine {
@@ -63,8 +46,8 @@ impl StorageEngine {
     /// - build the BufferPool<DataPage>.
     pub fn new(config: StorageConfig) -> io::Result<Self> {
         // prepare paths
-        let header_path = config.db_dir.join(config.header_file_name);
-        let data_path = config.db_dir.join(config.data_file_name);
+        let header_path = config.database_dir.join(HEADER_FILE);
+        let data_path = config.database_dir.join(DATA_FILE);
 
         // open disk managers
         let header_disk = Arc::new(FileDiskManager::<HeaderPage>::open(&header_path)?);
@@ -87,5 +70,11 @@ impl StorageEngine {
             header_disk,
             free_list: Arc::clone(&freelist),
         })
+    }
+    
+    /// Deactivate storage engine and flush all dirty pages
+    pub fn deactivate(&mut self) {
+        self.buffer_pool.flush_all();
+        self.free_list.lock().unwrap().flush_all();
     }
 }
