@@ -145,10 +145,10 @@ impl Page for DataPage {
 impl DataPage {
 
     #[inline]
-    fn get_next_id(&self) -> PageId { self.next_id }
+    pub fn get_next_id(&self) -> PageId { self.next_id }
 
     #[inline]
-    fn set_next_id(&mut self, id: PageId) { self.next_id = id; }
+    pub fn set_next_id(&mut self, id: PageId) { self.next_id = id; }
 
     /// Insert record to page
     pub fn insert_record(&mut self, record: &[u8]) -> Option<SlotId> {

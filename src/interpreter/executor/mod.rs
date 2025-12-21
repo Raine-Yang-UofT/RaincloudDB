@@ -33,6 +33,7 @@ impl Executor {
             Statement::ConnectDatabase { name } => self.connect_database(&name),
             Statement::DisconnectDatabase {} => self.disconnect_database(),
             Statement::CreateTable {name, columns } => self.create_table(&name , columns),
+            Statement::DropTable { name } => self.drop_table(&name),
             _ => Err("Unsupported statement".to_string()),
         }
     }
