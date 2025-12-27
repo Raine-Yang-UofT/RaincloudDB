@@ -74,12 +74,50 @@ fn test_insert() {
     let stmts = parse_sql(sql);
 
     match &stmts[0] {
-        Statement::Insert { table, values } => {
+        Statement::Insert { table, rows } => {
             assert_eq!(table, "users");
-            assert_eq!(values.len(), 2);
-            assert!(matches!(values[0], Literal::Int(1)));
-            if let Literal::String(s) = &values[1] {
+            assert_eq!(rows.len(), 1);
+            if let Literal::Int(v) = &rows[0].record[0] {
+                assert_eq!(*v, 1);
+            } else {
+                panic!("Expected Literal::String");
+            }
+            if let Literal::String(s) = &rows[0].record[1] {
                 assert_eq!(s, "Alice");
+            } else {
+                panic!("Expected Literal::String");
+            }
+        }
+        _ => panic!("Expected Insert statement"),
+    }
+}
+
+#[test]
+fn test_insert_multiple() {
+    let sql = "INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob');";
+    let stmts = parse_sql(sql);
+
+    match &stmts[0] {
+        Statement::Insert { table, rows } => {
+            assert_eq!(table, "users");
+            assert_eq!(rows.len(), 2);
+            if let Literal::Int(v) = &rows[0].record[0] {
+                assert_eq!(*v, 1);
+            } else {
+                panic!("Expected Literal::Int");
+            }
+            if let Literal::String(s) = &rows[0].record[1] {
+                assert_eq!(s, "Alice");
+            } else {
+                panic!("Expected Literal::String");
+            }
+            if let Literal::Int(v) = &rows[1].record[0] {
+                assert_eq!(*v, 2);
+            } else {
+                panic!("Expected Literal::Int");
+            }
+            if let Literal::String(s) = &rows[1].record[1] {
+                assert_eq!(s, "Bob");
             } else {
                 panic!("Expected Literal::String");
             }

@@ -32,6 +32,7 @@ pub struct DataPage {
 impl Page for DataPage {
 
     fn new(id: PageId) -> Self {
+        debug_assert_ne!(id, 0);    // page id must be greater than 0
         Self {
             id,
             next_id: 0,

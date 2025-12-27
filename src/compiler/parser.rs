@@ -162,7 +162,7 @@ impl Parser {
     }
 
     /**
-    insert_stmt := INSERT INTO identifier VALUES ( literal (,literal)* ) ;
+    insert_stmt := INSERT INTO identifier VALUES row ( , row )* ;
     */
     fn parse_insert(&mut self) -> ParseResult<Statement> {
         self.consume(TokenType::Insert)?;
@@ -170,17 +170,16 @@ impl Parser {
 
         let table = self.consume_identifier()?;
         self.consume(TokenType::Values)?;
-        self.consume(TokenType::LParen)?;
 
-        let mut values = vec![self.parse_literal()?];
+        let mut rows = Vec::new();
+        rows.push(self.parse_value_row()?);
         while self.match_token(TokenType::Comma) {
-            values.push(self.parse_literal()?);
+            rows.push(self.parse_value_row()?);
         }
 
-        self.consume(TokenType::RParen)?;
         self.consume(TokenType::Semicolon)?;
 
-        Ok(Statement::Insert {table, values})
+        Ok(Statement::Insert {table, rows})
     }
 
     /**
@@ -248,6 +247,21 @@ impl Parser {
         self.consume(TokenType::Equal)?;
         let right = Expression::Literal(self.parse_literal()?);
         Ok(Expression::Equals(Box::new(left), Box::new(right)))
+    }
+
+    /**
+    row := ( literal ( , literal )* )
+    */
+    fn parse_value_row(&mut self) -> ParseResult<RowDef> {
+        self.consume(TokenType::LParen)?;
+
+        let mut row = vec![self.parse_literal()?];
+        while self.match_token(TokenType::Comma) {
+            row.push(self.parse_literal()?);
+        }
+
+        self.consume(TokenType::RParen)?;
+        Ok(RowDef { record: row })
     }
 
     /// literal
