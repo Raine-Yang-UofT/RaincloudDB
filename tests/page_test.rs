@@ -13,7 +13,7 @@ fn test_insert_and_get_record() {
 
 #[test]
 fn test_insert_serialize_deserialize() {
-    let mut page = DataPage::new(0);
+    let mut page = DataPage::new(1);
     let payloads: [&[u8]; 3] = [
         b"slot0 data",
         b"slot1 payload",
@@ -29,7 +29,7 @@ fn test_insert_serialize_deserialize() {
     let serialized = page.serialize();
     let deserialized = DataPage::deserialize(&serialized).expect("deserialization failed");
 
-    assert_eq!(deserialized.get_id(), 0);
+    assert_eq!(deserialized.get_id(), 1);
     for (i, expected) in payloads.iter().enumerate() {
         let slot_id = slot_ids[i];
         let actual = deserialized.get_record(slot_id).expect("record missing");
@@ -39,8 +39,8 @@ fn test_insert_serialize_deserialize() {
 
 #[test]
 fn test_deletion_persists_through_serialization() {
-    let mut page = DataPage::new(0);
-    let payload = b"delete me please";
+    let mut page = DataPage::new(1);
+    let payload = b"content to be deleted";
     let slot_id = page.insert_record(payload).expect("insert failed");
 
     assert!(page.delete_record(slot_id).is_ok());
