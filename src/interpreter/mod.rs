@@ -1,16 +1,18 @@
 pub mod execution_context;
 pub mod catalog;
 pub mod executor;
+pub mod analyzer;
 
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 use execution_context::ExecutionContext;
 use catalog::Catalog;
 use crate::compiler::ast::Statement;
+use crate::interpreter::analyzer::Analyzer;
 use crate::interpreter::executor::Executor;
 
 pub struct Interpreter {
-    context: Arc<RwLock<ExecutionContext>>,
+    pub context: Arc<RwLock<ExecutionContext>>,
 }
 
 impl Interpreter {
@@ -39,7 +41,24 @@ impl Interpreter {
 
     /// Entry point for SQL interpreter
     pub fn execute(&mut self, stmt: Statement) -> Result<String, String> {
+        // only database-level statements are permitted if a database connection does not exist
+        if self.context.read().unwrap().current_db.is_none() {
+            if !matches!(stmt,
+                Statement::CreateDatabase { name: _ } |
+                Statement::DropDatabase { name: _ } |
+                Statement::ConnectDatabase { name: _ } |
+                Statement::DisconnectDatabase {}
+            ) {
+                return Err("A database connection does not exist".to_string());
+            }
+        }
+
+        let mut analyzer = Analyzer::new(Arc::clone(&self.context));
         let mut executor = Executor::new(Arc::clone(&self.context));
-        executor.execute(stmt)
+
+        match analyzer.analyze(stmt) { 
+            Ok(stmt) => executor.execute(stmt), 
+            Err(msg) => Err(msg),
+        }
     }
 }

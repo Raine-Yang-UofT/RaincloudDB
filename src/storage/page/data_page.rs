@@ -151,7 +151,8 @@ impl DataPage {
     #[inline]
     pub fn set_next_id(&mut self, id: PageId) { self.next_id = id; }
 
-    /// Insert record to page
+    /// Insert record to page, return Some(SlotId) if successful
+    /// Return None when there's insufficient page space or slot array
     pub fn insert_record(&mut self, record: &[u8]) -> Option<SlotId> {
         // check for available slot
         if self.next_slot as usize >= MAX_SLOTS {
@@ -182,6 +183,7 @@ impl DataPage {
     }
 
     /// Get a record by SlotId
+    /// Return None if the slot is empty
     pub fn get_record(&self, slot_id: SlotId) -> Option<&[u8]> {
         // return None if slot is invalid
         if !bitmap_get!(self.valid_slots, slot_id as usize) {
@@ -198,7 +200,9 @@ impl DataPage {
         }
     }
 
-    /// Update record
+    /// Update record with given SlotId and record data
+    /// Return Err(PageError::RecordSizeChanged) if the record size is not the same
+    /// Return Err(PageError::InvalidSlot) if the slot is empty
     pub fn update_record(&mut self, slot_id: SlotId, new_record: &[u8]) -> Result<(), PageError> {
         // check if record exists
         if !bitmap_get!(self.valid_slots, slot_id as usize) {

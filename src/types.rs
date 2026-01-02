@@ -1,5 +1,4 @@
 use crate::storage::replacement_strategy::ReplacementStrategyType;
-use crate::storage::StorageConfig;
 
 // global constants
 // data page configs
