@@ -258,7 +258,7 @@ mod tests {
     const LARGE_RECORD: [u8; 12] = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15];
 
     fn create_page_with_records() -> (DataPage, SlotId, SlotId) {
-        let mut page = DataPage::new(0);
+        let mut page = DataPage::new(1);
         let slot1 = page.insert_record(&SMALL_RECORD).unwrap();
         let slot2 = page.insert_record(&LARGE_RECORD).unwrap();
         (page, slot1, slot2)
@@ -277,7 +277,7 @@ mod tests {
 
     #[test]
     fn test_insert_record() {
-        let mut page = DataPage::new(0);
+        let mut page = DataPage::new(1);
         let initial_free_space = page.get_free_space();
 
         let slot_id = page.insert_record(&SMALL_RECORD).unwrap();
@@ -290,7 +290,7 @@ mod tests {
 
     #[test]
     fn test_insert_and_get_record() {
-        let mut page = DataPage::new(0);
+        let mut page = DataPage::new(1);
         let record = b"hello world";
 
         let slot_id = page.insert_record(record).expect("insert should succeed");
@@ -301,14 +301,14 @@ mod tests {
 
     #[test]
     fn test_insert_too_large_record_fails() {
-        let mut page = DataPage::new(0);
+        let mut page = DataPage::new(1);
         let record = vec![0u8; PAGE_SIZE]; // too large to fit
         assert!(page.insert_record(&record).is_none());
     }
 
     #[test]
     fn test_multiple_insert_and_fetch() {
-        let mut page = DataPage::new(0);
+        let mut page = DataPage::new(1);
         let records = vec![b"e1", b"e2", b"e3"];
 
         let mut ids = vec![];
@@ -338,19 +338,19 @@ mod tests {
 
     #[test]
     fn test_delete_invalid_slot() {
-        let mut page = DataPage::new(0);
+        let mut page = DataPage::new(1);
         assert_eq!(page.delete_record(99), Err(PageError::InvalidSlot)); // out of range
     }
 
     #[test]
     fn test_get_invalid_slot() {
-        let page = DataPage::new(0);
+        let page = DataPage::new(1);
         assert!(page.get_record(0).is_none());
     }
 
     #[test]
     fn test_fill_page_until_full() {
-        let mut page = DataPage::new(0);
+        let mut page = DataPage::new(1);
         let record = vec![1u8; 64];
 
         let mut count = 0;
