@@ -11,6 +11,7 @@ fn test_create_database() {
     let ctx = interpreter.context.read().unwrap();
     let db_path = ctx.dbms_root_dir.join("db1");
 
+    // check database files are created and database exists in catalog
     assert!(db_path.exists());
     assert!(db_path.join(DATA_FILE).exists());
     assert!(db_path.join(HEADER_FILE).exists());
@@ -48,6 +49,7 @@ fn test_drop_database() {
     // there is active connection to database, cannot drop
     assert!(test_sql("DROP DATABASE db1;", &mut interpreter).is_err());
 
+    // check database directory is removed and database is removed from catalog
     assert!(test_sql("DISCONNECT; DROP DATABASE db1;", &mut interpreter).is_ok());
     let ctx = interpreter.context.read().unwrap();
     assert!(!ctx.dbms_root_dir.join("db1").exists());
