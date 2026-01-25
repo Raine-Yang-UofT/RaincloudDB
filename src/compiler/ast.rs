@@ -33,24 +33,27 @@ pub enum Statement {
     },
 }
 
+/// Column Definition
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ColumnDef {
     pub name: String,
     pub data_type: DataType,
 }
 
+/// Row Definition
 #[derive(Debug, Clone, PartialEq)]
 pub struct RowDef {
     pub record: Vec<Literal>,
 }
 
-/// Column definition
+/// Column Data Type
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum DataType {
     Int,
     Char(u32), // CHAR(n)
 }
 
+/// Expression
 #[derive(Debug, Clone, PartialEq)]
 pub enum Expression {
     Equals(Box<Expression>, Box<Expression>),
@@ -58,6 +61,15 @@ pub enum Expression {
     Literal(Literal),
 }
 
+/// Expression Data Type
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExprType {
+    Int,
+    Char,
+    Bool,
+}
+
+/// Literal
 #[derive(Debug, Clone, PartialEq)]
 pub enum Literal {
     Int(i32),

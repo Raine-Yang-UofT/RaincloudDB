@@ -26,7 +26,6 @@ impl Interpreter {
             ExecutionContext::new(dbms_root_dir.clone(), catalog)
         ));
 
-
         // initialize one storage engine for every database in catalog
         {
             let mut ctx = context.write().unwrap();
