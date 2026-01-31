@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use crate::compiler::ast::{Assignment, ColumnDef, DataType, Expression, Literal, RowDef};
+use crate::compiler::ast::{Assignment, ColumnDef, DataType, ExprType, Expression, Literal, RowDef};
 use crate::interpreter::analyzer::Analyzer;
 
 impl Analyzer {
@@ -111,12 +111,12 @@ impl Analyzer {
         // check the selection condition returns a boolean
         if let Some(expr) = selection {
             let expr_type = self.analyze_expression(expr, &schema)?;
-            if let Literal::Bool(_) = expr_type {
-                return Ok(())
+            if expr_type != ExprType::Bool {
+                return Err("WHERE clause must evaluate to a boolean expression".to_string());
             }
         }
 
-        Err("WHERE clause must evaluate to a boolean expression".to_string())
+        Ok(())
     }
 
     fn validate_data_type(&self, literal: &Literal, column: &ColumnDef) -> Result<(), String> {
