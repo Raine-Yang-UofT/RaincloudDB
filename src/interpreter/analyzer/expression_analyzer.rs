@@ -5,39 +5,35 @@ use crate::interpreter::catalog::TableSchema;
 impl Analyzer {
     pub fn analyze_expression(&self, expr: &Expression, schema: &TableSchema) -> Result<ExprType, String> {
         match expr {
-            Expression::Literal(_) => self.analyze_literal(expr),
-            Expression::Identifier(_) => self.analyze_identifier(expr, &schema),
-            Expression::Equals(l, r) => {
-                let lfs = self.analyze_expression(l, schema)?;
-                let rhs = self.analyze_expression(r, schema)?;
-                if lfs != rhs {
-                    return Err(format!("Mismatched type in '=' expression, LHS '{:?}' RHS '{:?}'", lfs, rhs));
-                }
-                Ok(ExprType::Bool)
-            }
+            Expression::Literal(lit) => self.analyze_literal(lit),
+            Expression::Identifier(name) => self.analyze_identifier(name, &schema),
+            Expression::Equals(lhs, rhs) => self.analyze_equal(lhs, rhs, &schema),
         }
     }
 
-    fn analyze_literal(&self, expr: &Expression) -> Result<ExprType, String> {
-        if let Expression::Literal(lit) = expr {
-            return match lit {
-                Literal::Int(_) => Ok(ExprType::Int),
-                Literal::String(_) => Ok(ExprType::Char),
-                Literal::Bool(_) => Ok(ExprType::Bool),
-            }
+    fn analyze_literal(&self, lit: &Literal) -> Result<ExprType, String> {
+        match lit {
+            Literal::Int(_) => Ok(ExprType::Int),
+            Literal::String(_) => Ok(ExprType::Char),
+            Literal::Bool(_) => Ok(ExprType::Bool),
         }
-        Err("Expected literal".to_string())
     }
 
-    fn analyze_identifier(&self, expr: &Expression, schema: &TableSchema) -> Result<ExprType, String> {
-        if let Expression::Identifier(name) = expr {
-            return schema.columns
-                .iter()
-                .find(|c| c.name == *name)
-                .map(|c| self.parse_data_type(&c.data_type) )
-                .ok_or_else(|| format!("Unknown column '{}'", name))
+    fn analyze_identifier(&self, name: &String, schema: &TableSchema) -> Result<ExprType, String> {
+        schema.columns
+            .iter()
+            .find(|c| c.name == *name)
+            .map(|c| self.parse_data_type(&c.data_type) )
+            .ok_or_else(|| format!("Unknown column '{}'", name))
+    }
+
+    fn analyze_equal(&self, lhs: &Expression, rhs: &Expression, schema: &TableSchema) -> Result<ExprType, String> {
+        let left = self.analyze_expression(lhs, schema)?;
+        let right = self.analyze_expression(rhs, schema)?;
+        if left != right {
+            return Err(format!("Mismatched type in '=' expression, LHS '{:?}' RHS '{:?}'", left, right));
         }
-        Err("Expected identifier expression".to_string())
+        Ok(ExprType::Bool)
     }
 
     fn parse_data_type(&self, data_type: &DataType) -> ExprType {
