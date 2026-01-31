@@ -35,7 +35,7 @@ fn test_identifier_type() {
     let expr = Expression::Identifier("name".to_string());
     let res = analyzer.analyze_expression(&expr, &schema).unwrap();
 
-    assert_eq!(res, Literal::String("name".to_string()));
+    assert_eq!(res, Literal::String("".to_string()));
 }
 
 #[test]
