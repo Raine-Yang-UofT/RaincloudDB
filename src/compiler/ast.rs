@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Statement {
 
     CreateDatabase { name: String },
@@ -34,27 +34,27 @@ pub enum Statement {
 }
 
 /// Column Definition
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct ColumnDef {
     pub name: String,
     pub data_type: DataType,
 }
 
 /// Row Definition
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RowDef {
     pub record: Vec<Literal>,
 }
 
 /// Column Data Type
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DataType {
     Int,
     Char(u32), // CHAR(n)
 }
 
 /// Expression
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expression {
     Equals(Box<Expression>, Box<Expression>),
     Identifier(String),
@@ -62,7 +62,7 @@ pub enum Expression {
 }
 
 /// Expression Data Type
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ExprType {
     Int,
     Char,
@@ -70,14 +70,14 @@ pub enum ExprType {
 }
 
 /// Literal
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Literal {
     Int(i32),
     String(String),
 }
 
 /// Assignment statement in update
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Assignment {
     pub column: String,
     pub value: Literal,

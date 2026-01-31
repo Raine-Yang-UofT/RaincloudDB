@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use crate::compiler::ast::{Assignment, ColumnDef, DataType, Expression, Literal, RowDef};
+use crate::compiler::ast::{Assignment, ColumnDef, DataType, ExprType, Expression, Literal, RowDef};
 use crate::interpreter::analyzer::Analyzer;
 
 impl Analyzer {
@@ -73,17 +73,51 @@ impl Analyzer {
         Ok(())
     }
 
-    // pub fn analyze_update_table(&mut self, table: &str, assignments: &Vec<Assignment>, selection: &Option<Expression>) -> Result<(), String> {
-    //     let ctx = self.context.read().unwrap();
-    //
-    //     // check the table exists in database
-    //     let database = ctx.current_db.as_ref().unwrap();
-    //     let schema = ctx.catalog.get_table_schema(database, table)
-    //         .ok_or_else(|| format!("Table '{}' does not exist", table))?;
-    //
-    //     // check the update rows match table schema
-    //
-    // }
+    pub fn analyze_update_table(
+        &mut self,
+        table: &str,
+        assignments: &Vec<Assignment>,
+        selection: &Option<Expression>
+    ) -> Result<(), String> {
+        let ctx = self.context.read().unwrap();
+
+        // check the table exists in database
+        let database = ctx.current_db.as_ref().unwrap();
+        let schema = ctx.catalog.get_table_schema(database, table)
+            .ok_or_else(|| format!("Table '{}' does not exist", table))?;
+
+        // check the update assignment is not empty
+        if assignments.is_empty() {
+            return Err("UPDATE must specify at least one column assignment".to_string());
+        }
+
+        let mut existing = HashSet::new();
+        for assignment in assignments {
+            // check column exists
+            let column_def = schema.columns
+                .iter()
+                .find(|col| col.name == assignment.column)
+                .ok_or_else(|| format!("Column '{}' does not exist in {}", assignment.column, table))?;
+
+            // check no duplicate columns
+            if !existing.insert(column_def) {
+                return Err(format!("Duplicate column '{}'", assignment.column));
+            }
+
+            // check data type compatibility
+            self.validate_data_type(&assignment.value, column_def)?;
+        }
+
+        // check the selection condition returns a boolean
+        if let Some(expr) = selection {
+            let expr_type = self.analyze_expression(expr, &schema)?;
+            if expr_type != ExprType::Bool {
+                return Err("WHERE clause must evaluate to a boolean expression".to_string());
+            }
+        }
+
+        Ok(())
+    }
 
     fn validate_data_type(&self, literal: &Literal, column: &ColumnDef) -> Result<(), String> {
         match (&column.data_type, literal) {
