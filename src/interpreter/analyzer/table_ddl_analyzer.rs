@@ -1,15 +1,26 @@
-use crate::compiler::ast::{ColumnDef, DataType, Literal, RowDef};
+use std::collections::HashSet;
+use crate::compiler::ast::{Assignment, ColumnDef, DataType, Expression, Literal, RowDef};
 use crate::interpreter::analyzer::Analyzer;
 
 impl Analyzer {
 
-    pub fn analyze_create_table(&mut self, name: &str) -> Result<(), String> {
+    pub fn analyze_create_table(&mut self, name: &str, columns: &Vec<ColumnDef>) -> Result<(), String> {
         let ctx = self.context.read().unwrap();
 
         // check there is no duplicate table name in current database
         let database = ctx.current_db.as_ref().unwrap();
         if ctx.catalog.get_table_schema(&database, name).is_some() {
             return Err(format!("The table '{}' already exists", name));
+        }
+
+        // check for duplicate column names
+        let mut existing = HashSet::new();
+
+        for col in columns {
+            let name = &col.name;
+            if !existing.insert(name) {
+                return Err(format!("Duplicate column name '{}'", name));
+            }
         }
 
         Ok(())
@@ -62,6 +73,18 @@ impl Analyzer {
         Ok(())
     }
 
+    // pub fn analyze_update_table(&mut self, table: &str, assignments: &Vec<Assignment>, selection: &Option<Expression>) -> Result<(), String> {
+    //     let ctx = self.context.read().unwrap();
+    //
+    //     // check the table exists in database
+    //     let database = ctx.current_db.as_ref().unwrap();
+    //     let schema = ctx.catalog.get_table_schema(database, table)
+    //         .ok_or_else(|| format!("Table '{}' does not exist", table))?;
+    //
+    //     // check the update rows match table schema
+    //
+    // }
+
     fn validate_data_type(&self, literal: &Literal, column: &ColumnDef) -> Result<(), String> {
         match (&column.data_type, literal) {
             // validate INT type
@@ -80,6 +103,7 @@ impl Analyzer {
                 }
             },
             (DataType::Char(len), _) => Err(format!("expected CHAR({})", len)),
+            _ => Err(format!("Unsupported data type at column {:?}", column).to_string()),
         }
     }
 }

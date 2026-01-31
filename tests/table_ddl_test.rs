@@ -33,6 +33,14 @@ fn test_create_table_duplicate_error() {
 }
 
 #[test]
+fn test_create_table_duplicate_column_error() {
+    let mut interpreter = setup_interpreter();
+    test_sql("CREATE DATABASE db1; CONNECT TO db1;", &mut interpreter).unwrap();
+
+    assert!(test_sql("CREATE TABLE users (id INT, id CHAR(10));", &mut interpreter).is_err());
+}
+
+#[test]
 fn test_insert_and_page_overflow() {
     let mut interpreter = setup_interpreter();
     test_sql("CREATE DATABASE db1; CONNECT TO db1;", &mut interpreter).unwrap();
