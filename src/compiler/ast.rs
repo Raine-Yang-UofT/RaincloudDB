@@ -61,13 +61,15 @@ pub enum Expression {
     Literal(Literal),
 }
 
+/// Expression Data Type
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExprType {
+    Int,
+    Char,
+    Bool,
+}
+
 /// Literal
-/// To avoid using Option, we define a "default value" for each
-/// literal type when we only want to represent data type, not
-/// actual value. e.g. during analyzer type checking
-/// Int: 0
-/// String: ""
-/// Bool: false
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Literal {
     Int(i32),

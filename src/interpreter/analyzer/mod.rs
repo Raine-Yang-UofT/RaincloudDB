@@ -35,9 +35,9 @@ impl Analyzer {
             Statement::Insert { table, rows } => {
                 self.analyze_insert_table(table, rows)?;
             }
-            Statement::Update { table, assignments, selection } => {
-                self.analyze_update_table(table, assignments, selection)?;
-            }
+            // Statement::Update { table, assignments, selection } => {
+            //     self.analyze_update_table(table, assignments, selection)?;
+            // }
             _ => {
                 // statements that require no semantic analysis
             }
