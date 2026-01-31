@@ -61,19 +61,12 @@ pub enum Expression {
     Literal(Literal),
 }
 
-/// Expression Data Type
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum ExprType {
-    Int,
-    Char,
-    Bool,
-}
-
 /// Literal
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Literal {
     Int(i32),
     String(String),
+    Bool(bool),
 }
 
 /// Assignment statement in update
@@ -97,6 +90,9 @@ impl RowDef {
                 }
                 Literal::String(v) => {
                     buf.extend_from_slice(&v.as_bytes());
+                }
+                Literal::Bool(v) => {
+                    buf.extend_from_slice(&[*v as u8]);
                 }
             }
         }

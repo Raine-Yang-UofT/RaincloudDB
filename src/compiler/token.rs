@@ -15,6 +15,7 @@ pub enum TokenType {
     Identifier(String),
     IntLiteral(i32),
     StringLiteral(String),
+    BoolLiteral(bool),
 
     // keywords
     Create, Database, Drop, Table, Insert, Into,

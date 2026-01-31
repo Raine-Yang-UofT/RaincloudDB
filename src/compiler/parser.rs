@@ -270,6 +270,7 @@ impl Parser {
         match token.token_type {
             TokenType::IntLiteral(v) => Ok(Literal::Int(v)),
             TokenType::StringLiteral(s) => Ok(Literal::String(s)),
+            TokenType::BoolLiteral(b) => Ok(Literal::Bool(b)),
             t => Err(format!("Expected literal, got {:?} at line {:?}", t, token.line)),
         }
     }
