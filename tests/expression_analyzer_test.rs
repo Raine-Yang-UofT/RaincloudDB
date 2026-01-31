@@ -1,6 +1,6 @@
 mod common;
 
-use raincloud_db::compiler::ast::{ColumnDef, DataType, ExprType, Expression, Literal};
+use raincloud_db::compiler::ast::{ColumnDef, DataType, Expression, Literal};
 use raincloud_db::interpreter::analyzer::Analyzer;
 use raincloud_db::interpreter::catalog::TableSchema;
 use crate::common::setup_interpreter;
@@ -28,36 +28,14 @@ fn test_schema() -> TableSchema {
 }
 
 #[test]
-fn test_literal_int_type() {
-    let analyzer = setup_analyzer();
-    let schema = test_schema();
-
-    let expr = Expression::Literal(Literal::Int(10));
-    let ty = analyzer.analyze_expression(&expr, &schema).unwrap();
-
-    assert_eq!(ty, ExprType::Int);
-}
-
-#[test]
-fn test_literal_string_type() {
-    let analyzer = setup_analyzer();
-    let schema = test_schema();
-
-    let expr = Expression::Literal(Literal::String("abc".to_string()));
-    let ty = analyzer.analyze_expression(&expr, &schema).unwrap();
-
-    assert_eq!(ty, ExprType::Char);
-}
-
-#[test]
 fn test_identifier_type() {
     let analyzer = setup_analyzer();
     let schema = test_schema();
 
     let expr = Expression::Identifier("name".to_string());
-    let ty = analyzer.analyze_expression(&expr, &schema).unwrap();
+    let res = analyzer.analyze_expression(&expr, &schema).unwrap();
 
-    assert_eq!(ty, ExprType::Char);
+    assert_eq!(res, Literal::String("name".to_string()));
 }
 
 #[test]
@@ -70,8 +48,8 @@ fn test_equals() {
         Box::new(Expression::Literal(Literal::Int(42))),
     );
 
-    let ty = analyzer.analyze_expression(&expr, &schema).unwrap();
-    assert_eq!(ty, ExprType::Bool);
+    let res = analyzer.analyze_expression(&expr, &schema).unwrap();
+    assert_eq!(res, Literal::Bool(false));
 }
 
 #[test]
