@@ -1,8 +1,9 @@
+use crate::compiler::bounded_ast::BoundStmt;
 use crate::interpreter::analyzer::Analyzer;
 
 impl Analyzer {
 
-    pub fn analyze_create_database(&self, name: &str) -> Result<(), String> {
+    pub fn analyze_create_database(&self, name: &str) -> Result<BoundStmt, String> {
         let ctx = self.context.read().unwrap();
 
         // check no duplicate database name in catalog
@@ -16,10 +17,10 @@ impl Analyzer {
             return Err(format!("The database directory '{}' already exists.", name));
         }
 
-        Ok(())
+        Ok(BoundStmt::CreateDatabase { name: String::from(name) })
     }
 
-    pub fn analyze_drop_database(&self, name: &str) -> Result<(), String> {
+    pub fn analyze_drop_database(&self, name: &str) -> Result<BoundStmt, String> {
         let ctx = self.context.read().unwrap();
 
         // check the database exists in catalog
@@ -35,10 +36,10 @@ impl Analyzer {
             ));
         }
 
-        Ok(())
+        Ok(BoundStmt::DropDatabase { name: String::from(name) })
     }
 
-    pub fn analyze_connect_database(&self, name: &str) -> Result<(), String> {
+    pub fn analyze_connect_database(&self, name: &str) -> Result<BoundStmt, String> {
         let ctx = self.context.read().unwrap();
 
         // check a connection does no already exist
@@ -51,6 +52,10 @@ impl Analyzer {
             return Err(format!("Database '{}' does not exist", name));
         }
 
-        Ok(())
+        Ok(BoundStmt::ConnectDatabase { name: String::from(name) })
+    }
+
+    pub fn analyze_disconnect_database(&self) -> Result<BoundStmt, String> {
+        Ok(BoundStmt::DisconnectDatabase)
     }
 }

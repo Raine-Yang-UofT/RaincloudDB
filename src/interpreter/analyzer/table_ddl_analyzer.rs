@@ -1,10 +1,14 @@
+use std::cmp::PartialEq;
 use std::collections::HashSet;
+use std::ops::Deref;
 use crate::compiler::ast::{Assignment, ColumnDef, DataType, ExprType, Expression, Literal, RowDef};
+use crate::compiler::bounded_ast::{BoundAssignment, BoundStmt};
 use crate::interpreter::analyzer::Analyzer;
+use crate::types::ColumnId;
 
 impl Analyzer {
 
-    pub fn analyze_create_table(&mut self, name: &str, columns: &Vec<ColumnDef>) -> Result<(), String> {
+    pub fn analyze_create_table(&mut self, name: &str, columns: &Vec<ColumnDef>) -> Result<BoundStmt, String> {
         let ctx = self.context.read().unwrap();
 
         // check there is no duplicate table name in current database
@@ -23,10 +27,10 @@ impl Analyzer {
             }
         }
 
-        Ok(())
+        Ok(BoundStmt::CreateTable { name: String::from(name), columns: columns.clone() })
     }
 
-    pub fn analyze_drop_table(&mut self, name: &str) -> Result<(), String> {
+    pub fn analyze_drop_table(&mut self, name: &str) -> Result<BoundStmt, String> {
         let ctx = self.context.read().unwrap();
 
         // check the table exists in database
@@ -35,10 +39,10 @@ impl Analyzer {
             return Err(format!("The table '{}' does not exists", name));
         }
 
-        Ok(())
+        Ok(BoundStmt::DropTable { name: String::from(name) })
     }
 
-    pub fn analyze_insert_table(&mut self, table: &str, rows: &Vec<RowDef>) -> Result<(), String> {
+    pub fn analyze_insert_table(&mut self, table: &str, rows: &Vec<RowDef>) -> Result<BoundStmt, String> {
         let ctx = self.context.read().unwrap();
 
         // check the table exists in database
@@ -70,7 +74,7 @@ impl Analyzer {
             }
         }
 
-        Ok(())
+        Ok(BoundStmt::Insert { table: String::from(table), rows: rows.clone() })
     }
 
     pub fn analyze_update_table(
@@ -78,7 +82,7 @@ impl Analyzer {
         table: &str,
         assignments: &Vec<Assignment>,
         selection: &Option<Expression>
-    ) -> Result<(), String> {
+    ) -> Result<BoundStmt, String> {
         let ctx = self.context.read().unwrap();
 
         // check the table exists in database
@@ -91,32 +95,47 @@ impl Analyzer {
             return Err("UPDATE must specify at least one column assignment".to_string());
         }
 
-        let mut existing = HashSet::new();
+        let mut existing = HashSet::<ColumnId>::new();
+        let mut bound_assignments = Vec::with_capacity(assignments.len());
         for assignment in assignments {
-            // check column exists
-            let column_def = schema.columns
-                .iter()
-                .find(|col| col.name == assignment.column)
+            // resolve column name to column id
+            let column_id = *schema.column_index
+                .get(&assignment.column)
                 .ok_or_else(|| format!("Column '{}' does not exist in {}", assignment.column, table))?;
 
             // check no duplicate columns
-            if !existing.insert(column_def) {
+            if !existing.insert(column_id) {
                 return Err(format!("Duplicate column '{}'", assignment.column));
             }
 
             // check data type compatibility
+            let column_def = &schema.columns[column_id];
             self.validate_data_type(&assignment.value, column_def)?;
+
+            // bind assignment
+            bound_assignments.push(BoundAssignment {
+                column_id,
+                value: assignment.value.clone(),
+            });
         }
 
-        // check the selection condition returns a boolean
-        if let Some(expr) = selection {
-            let expr_type = self.analyze_expression(expr, &schema)?;
-            if expr_type != ExprType::Bool {
-                return Err("WHERE clause must evaluate to a boolean expression".to_string());
+        // bind WHERE clause
+        let bound_selection = match selection {
+            Some(expr) => {
+                let bound = self.analyze_expression(expr, schema)?;
+                if *bound.get_type() != ExprType::Bool {
+                    return Err("WHERE clause must evaluate to a boolean expression".to_string());
+                }
+                Some(bound)
             }
-        }
+            None => None,
+        };
 
-        Ok(())
+        Ok(BoundStmt::Update {
+            table: table.to_string(),
+            assignments: bound_assignments,
+            selection: bound_selection,
+        })
     }
 
     fn validate_data_type(&self, literal: &Literal, column: &ColumnDef) -> Result<(), String> {

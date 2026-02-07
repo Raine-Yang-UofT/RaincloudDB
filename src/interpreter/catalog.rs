@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use std::{fs, io};
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use crate::compiler::ast::{ColumnDef};
@@ -10,6 +10,7 @@ use crate::types::{PageId, CATALOG_FILE};
 pub struct TableSchema {
     pub name: String,
     pub columns: Vec<ColumnDef>,
+    pub column_index: HashMap<String, usize>,
     pub first_page_id: PageId
 }
 

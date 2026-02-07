@@ -1,8 +1,10 @@
 mod database_executor;
 mod table_ddl_executor;
+mod expression_executor;
 
 use std::sync::{Arc, RwLock};
 use crate::compiler::ast::Statement;
+use crate::compiler::bounded_ast::BoundStmt;
 use crate::interpreter::execution_context::ExecutionContext;
 
 pub struct Executor {
@@ -14,15 +16,16 @@ impl Executor {
         Self { context }
     }
 
-    pub fn execute(&mut self, stmt: Statement) -> Result<String, String> {
+    pub fn execute(&mut self, stmt: BoundStmt) -> Result<String, String> {
         match stmt {
-            Statement::CreateDatabase { name } => self.create_database(&name),
-            Statement::DropDatabase { name } => self.drop_database(&name),
-            Statement::ConnectDatabase { name } => self.connect_database(&name),
-            Statement::DisconnectDatabase {} => self.disconnect_database(),
-            Statement::CreateTable {name, columns } => self.create_table(&name , columns),
-            Statement::DropTable { name } => self.drop_table(&name),
-            Statement::Insert { table, rows } => self.insert_table(&table, rows),
+            BoundStmt::CreateDatabase { name } => self.create_database(&name),
+            BoundStmt::DropDatabase { name } => self.drop_database(&name),
+            BoundStmt::ConnectDatabase { name } => self.connect_database(&name),
+            BoundStmt::DisconnectDatabase {} => self.disconnect_database(),
+            BoundStmt::CreateTable {name, columns } => self.create_table(&name , columns),
+            BoundStmt::DropTable { name } => self.drop_table(&name),
+            BoundStmt::Insert { table, rows } => self.insert_table(&table, &rows),
+            //BoundStmt::Update { table, assignments, selection } => self.update_table(&table, &assignments, &selection),
             _ => Err("Unsupported statement".to_string()),
         }
     }

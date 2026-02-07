@@ -1,6 +1,7 @@
+use std::collections::HashMap;
 use crate::storage::page::page::Page;
 use paste::paste;
-use crate::compiler::ast::{ColumnDef, RowDef};
+use crate::compiler::ast::{Assignment, ColumnDef, Expression, RowDef};
 use crate::interpreter::executor::Executor;
 use crate::interpreter::catalog::TableSchema;
 use crate::types::NO_FLUSH;
@@ -16,11 +17,18 @@ impl Executor {
         let page_id;
         let storage_engine = ctx.storage_engines.get(&database).unwrap();
         with_create_pages!(storage_engine.buffer_pool, [(page_id, page)], NO_FLUSH, {});
+        
+        // create column index
+        let mut column_index = HashMap::new();
+        for i in 0..columns.len() {
+            column_index.insert(columns[i].name.clone(), i);
+        }
 
         // insert table information to catalog
         let schema = TableSchema {
             name: String::from(name),
             columns,
+            column_index,
             first_page_id: page_id,
         };
 
@@ -53,7 +61,7 @@ impl Executor {
         }
     }
 
-    pub fn insert_table(&mut self, table: &str, rows: Vec<RowDef>) -> Result<String, String> {
+    pub fn insert_table(&mut self, table: &str, rows: &Vec<RowDef>) -> Result<String, String> {
         let ctx = self.context.read().unwrap();
         let database = ctx.current_db.clone().unwrap();
         let num_rows = rows.len();
@@ -88,5 +96,16 @@ impl Executor {
         }
 
         Ok(format!("Insert {} records to table '{}'", num_rows, table))
+    }
+
+    pub fn update_table(
+        &mut self, 
+        table: &str, 
+        assignments: &Vec<Assignment>, 
+        selection: &Option<Expression>
+    ) -> Result<String, String> {
+        
+        
+        Ok("".to_string())
     }
 }
