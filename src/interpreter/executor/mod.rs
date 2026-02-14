@@ -3,13 +3,19 @@ mod table_ddl_executor;
 mod expression_executor;
 
 use std::sync::{Arc, RwLock};
-use crate::compiler::ast::Statement;
+use crate::compiler::ast::{RowDef, Statement};
 use crate::compiler::bounded_ast::BoundStmt;
 use crate::interpreter::execution_context::ExecutionContext;
 
 pub struct Executor {
     pub context: Arc<RwLock<ExecutionContext>>,
 }
+
+/// Context for executing an expression
+pub struct ExprContext {
+    pub row: RowDef,
+}
+
 
 impl Executor {
     pub fn new(context: Arc<RwLock<ExecutionContext>>) -> Self {

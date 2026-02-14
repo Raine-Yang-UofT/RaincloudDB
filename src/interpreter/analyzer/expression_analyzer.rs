@@ -25,7 +25,7 @@ impl Analyzer {
             .ok_or_else(|| format!("Unknown column '{}'", name))?;
         let column_def = &schema.columns[column_id];
         let expr_type = self.parse_data_type(&column_def.data_type);
-        Ok(BoundExpr::Column (expr_type, column_id, ))
+        Ok(BoundExpr::Column (expr_type, column_id ))
     }
 
     fn analyze_equal(&self, lhs: &Expression, rhs: &Expression, schema: &TableSchema) -> Result<BoundExpr, String> {

@@ -40,12 +40,6 @@ pub struct ColumnDef {
     pub data_type: DataType,
 }
 
-/// Row Definition
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RowDef {
-    pub record: Vec<Literal>,
-}
-
 /// Column Data Type
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum DataType {
@@ -82,6 +76,12 @@ pub enum Literal {
 pub struct Assignment {
     pub column: String,
     pub value: Literal,
+}
+
+/// Row Definition
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RowDef {
+    pub record: Vec<Literal>,
 }
 
 // AST node methods
