@@ -127,6 +127,23 @@ fn test_insert_multiple() {
 }
 
 #[test]
+fn test_update() {
+    let sql = "UPDATE users SET name = 'Bob';";
+    let stmts = parse_sql(sql);
+
+    match &stmts[0] {
+        Statement::Update { table, assignments, selection } => {
+            assert_eq!(table, "users");
+            assert_eq!(assignments.len(), 1);
+            assert_eq!(assignments[0].column, "name");
+            assert!(matches!(assignments[0].value, Literal::String(ref s) if s == "Bob"));
+            assert!(selection.is_none(), "Expected no WHERE clause");
+        }
+        _ => panic!("Expected Update statement"),
+    }
+}
+
+#[test]
 fn test_update_with_where() {
     let sql = "UPDATE users SET name = 'Bob' WHERE id = 1;";
     let stmts = parse_sql(sql);
@@ -167,6 +184,41 @@ fn test_select_with_where() {
             }
         }
         _ => panic!("Expected Select statement"),
+    }
+}
+
+#[test]
+fn test_update_multiple_assignments() {
+    let sql = "UPDATE users SET name = 'Bob', age = 30, email = 'bob@example.com' WHERE id = 1;";
+    let stmts = parse_sql(sql);
+
+    match &stmts[0] {
+        Statement::Update { table, assignments, selection } => {
+            assert_eq!(table, "users");
+            assert_eq!(assignments.len(), 3);
+
+            // Check first assignment
+            assert_eq!(assignments[0].column, "name");
+            assert!(matches!(assignments[0].value, Literal::String(ref s) if s == "Bob"));
+
+            // Check second assignment
+            assert_eq!(assignments[1].column, "age");
+            assert!(matches!(assignments[1].value, Literal::Int(30)));
+
+            // Check third assignment
+            assert_eq!(assignments[2].column, "email");
+            assert!(matches!(assignments[2].value, Literal::String(ref s) if s == "bob@example.com"));
+
+            // Verify WHERE clause still works
+            match selection {
+                Some(Expression::Equals(l, r)) => {
+                    assert!(matches!(**l, Expression::Identifier(ref name) if name == "id"));
+                    assert!(matches!(**r, Expression::Literal(Literal::Int(1))));
+                }
+                _ => panic!("Expected equality expression"),
+            }
+        }
+        _ => panic!("Expected Update statement"),
     }
 }
 
