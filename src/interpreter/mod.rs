@@ -7,9 +7,8 @@ use std::path::Path;
 use std::sync::{Arc, RwLock};
 use execution_context::ExecutionContext;
 use catalog::Catalog;
-use crate::compiler::ast::{Expression, Statement};
+use crate::compiler::ast::Statement;
 use crate::interpreter::analyzer::Analyzer;
-use crate::interpreter::catalog::TableSchema;
 use crate::interpreter::executor::Executor;
 
 pub struct Interpreter {

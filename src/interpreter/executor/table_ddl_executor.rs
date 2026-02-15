@@ -1,11 +1,12 @@
 use std::collections::HashMap;
-use crate::storage::page::page::Page;
+use crate::storage::page::page::{Page, PageError};
 use paste::paste;
-use crate::compiler::ast::{Assignment, ColumnDef, Expression, RowDef};
-use crate::interpreter::executor::Executor;
+use crate::compiler::ast::{ColumnDef, Literal, RowDef};
+use crate::interpreter::executor::{Executor, ExprContext};
 use crate::interpreter::catalog::TableSchema;
 use crate::types::NO_FLUSH;
 use crate::{with_create_pages, with_read_pages, with_write_pages};
+use crate::compiler::bounded_ast::{BoundAssignment, BoundExpr};
 
 impl Executor {
 
@@ -101,11 +102,89 @@ impl Executor {
     pub fn update_table(
         &mut self, 
         table: &str, 
-        assignments: &Vec<Assignment>, 
-        selection: &Option<Expression>
+        assignments: &Vec<BoundAssignment>,
+        selection: &Option<BoundExpr>
     ) -> Result<String, String> {
-        
-        
-        Ok("".to_string())
+
+        let ctx = self.context.read().unwrap();
+        let database = ctx.current_db.clone().unwrap();
+
+        let schema = ctx.catalog.get_table_schema(&database, table).unwrap();
+        let storage_engine = ctx.storage_engines.get(&database).unwrap();
+
+        let mut page_id = schema.first_page_id;
+        let mut next_id;
+        let mut updated_count = 0;
+
+        while page_id != 0 {
+            with_write_pages!(storage_engine.buffer_pool, [(page_id, page)], NO_FLUSH, {
+                // track the records that need re-insertion
+                let mut updates = Vec::new();
+                next_id = page.get_next_id();
+
+                for (slot_id, record_bytes) in page.iter_record() {
+                    let mut row = RowDef::deserialize(record_bytes, &schema.columns)
+                        .expect("Error deserializing record");
+
+                    // skip the row only if the condition evaluates to false
+                    // no condition means updating every row
+                    if let Some(condition) = selection {
+                        if let Literal::Bool(false) = self.execute_expression(
+                            condition,
+                            &ExprContext { row: &row }
+                        )? {
+                            continue;
+                        }
+                    }
+
+                    // apply update and serialize result
+                    for assign in assignments {
+                        row.record[assign.column_id] = assign.value.clone();
+                    }
+                    let result_bytes = row.serialize().expect("Error serializing result");
+                    updates.push((slot_id, result_bytes));
+                }
+
+                // apply update to page
+                for (slot_id, result_bytes) in updates {
+                    match page.update_record(slot_id, &result_bytes) {
+                        Ok(_) => { updated_count += 1; },
+                        Err(PageError::RecordSizeChanged) => {
+                            // the record size has changed, delete the record
+                            // and insert a new record in table
+                            page.delete_record(slot_id).expect("Error deleting record");
+
+                            let mut insert_page_id = schema.first_page_id;
+                            loop {
+                                // iterate through table to find space for insertion
+                                with_write_pages!( storage_engine.buffer_pool, [(insert_page_id, insert_page)], NO_FLUSH, {
+                                    // successfully insert new record
+                                    if insert_page.insert_record(&result_bytes).is_some() {
+                                        break;
+                                    }
+
+                                    // append new pages
+                                    if insert_page.get_next_id() == 0 {
+                                        let new_page_id;
+                                        with_create_pages!(storage_engine.buffer_pool, [(new_page_id, new_page)], NO_FLUSH, {
+                                            insert_page.set_next_id(new_page_id);
+                                            new_page.insert_record(&result_bytes).expect("Error inserting record to new page");
+                                        });
+                                        break;
+                                    }
+
+                                    insert_page_id = insert_page.get_next_id();
+                                });
+                            }
+                            updated_count += 1;
+                        },
+                        Err(e) => panic!("Unexpected update error: {:?}", e),
+                    }
+                }
+            });
+            page_id = next_id;
+        }
+
+        Ok(format!("Updated {} rows in table '{}'", updated_count, table))
     }
 }

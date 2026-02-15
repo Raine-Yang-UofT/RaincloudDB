@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Statement {
 
@@ -87,7 +86,7 @@ pub struct RowDef {
 // AST node methods
 impl RowDef {
 
-    // convert record to raw bytes
+    /// Convert record to raw bytes
     pub fn serialize(&self) -> Result<Vec<u8>, String> {
         let mut buf = Vec::new();
 
@@ -108,7 +107,7 @@ impl RowDef {
         Ok(buf)
     }
 
-    // deserialize record with given schema
+    /// Deserialize record with given schema
     pub fn deserialize(buf: &[u8], schema: &Vec<ColumnDef>) -> Result<Self, String> {
         let mut offset = 0;
         let mut record = Vec::with_capacity(schema.len());

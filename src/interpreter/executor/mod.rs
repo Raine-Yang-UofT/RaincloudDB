@@ -3,7 +3,7 @@ mod table_ddl_executor;
 mod expression_executor;
 
 use std::sync::{Arc, RwLock};
-use crate::compiler::ast::{RowDef, Statement};
+use crate::compiler::ast::RowDef;
 use crate::compiler::bounded_ast::BoundStmt;
 use crate::interpreter::execution_context::ExecutionContext;
 
@@ -12,8 +12,8 @@ pub struct Executor {
 }
 
 /// Context for executing an expression
-pub struct ExprContext {
-    pub row: RowDef,
+pub struct ExprContext<'a> {
+    pub row: &'a RowDef,
 }
 
 
@@ -31,7 +31,8 @@ impl Executor {
             BoundStmt::CreateTable {name, columns } => self.create_table(&name , columns),
             BoundStmt::DropTable { name } => self.drop_table(&name),
             BoundStmt::Insert { table, rows } => self.insert_table(&table, &rows),
-            //BoundStmt::Update { table, assignments, selection } => self.update_table(&table, &assignments, &selection),
+            BoundStmt::Update { table, assignments, selection } => 
+                self.update_table(&table, &assignments, &selection),
             _ => Err("Unsupported statement".to_string()),
         }
     }

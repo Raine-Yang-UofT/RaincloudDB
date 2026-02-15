@@ -238,9 +238,10 @@ impl Parser {
     }
 
     /**
-    expression := identifier = literal
-
-    currently only support equality expression
+    expression :=
+    literal |
+    identifier |
+    (literal | identifier ) = (literal | identifier)
      */
     fn parse_expression(&mut self) -> ParseResult<Expression> {
         let left = Expression::Identifier(self.consume_identifier()?);

@@ -92,6 +92,117 @@ fn test_drop_table_cleans_up_pages() {
 }
 
 #[test]
+fn test_update_table_single_row() {
+    let mut interpreter = setup_interpreter();
+
+    test_sql("CREATE DATABASE db1; CONNECT TO db1;", &mut interpreter).unwrap();
+    test_sql("CREATE TABLE temp (id INT, name CHAR(5));", &mut interpreter).unwrap();
+    test_sql("INSERT INTO temp VALUES (0, \"foo  \");", &mut interpreter).unwrap();
+    assert!(test_sql("UPDATE temp SET name = \"bar  \" WHERE id = 0;", &mut interpreter).is_ok());
+}
+
+#[test]
+fn test_update_no_matching_rows() {
+    let mut interpreter = setup_interpreter();
+
+    test_sql("CREATE DATABASE db1; CONNECT TO db1;", &mut interpreter).unwrap();
+    test_sql("CREATE TABLE temp (id INT, name CHAR(5));", &mut interpreter).unwrap();
+    test_sql("INSERT INTO temp VALUES (0, \"foo  \");", &mut interpreter).unwrap();
+
+    assert!(test_sql(
+        "UPDATE temp SET name = \"bar  \" WHERE id = 999;",
+        &mut interpreter
+    ).is_ok());
+}
+
+#[test]
+fn test_update_all_rows() {
+    let mut interpreter = setup_interpreter();
+
+    test_sql("CREATE DATABASE db1; CONNECT TO db1;", &mut interpreter).unwrap();
+    test_sql("CREATE TABLE temp (id INT, name CHAR(5));", &mut interpreter).unwrap();
+
+    test_sql("INSERT INTO temp VALUES (0, \"foo  \");", &mut interpreter).unwrap();
+    test_sql("INSERT INTO temp VALUES (1, \"baz  \");", &mut interpreter).unwrap();
+
+    assert!(test_sql(
+        "UPDATE temp SET name = \"bar  \";",
+        &mut interpreter
+    ).is_ok());
+}
+
+#[test]
+fn test_update_multiple_assignments() {
+    let mut interpreter = setup_interpreter();
+
+    test_sql("CREATE DATABASE db1; CONNECT TO db1;", &mut interpreter).unwrap();
+    test_sql("CREATE TABLE temp (id INT, name CHAR(5));", &mut interpreter).unwrap();
+    test_sql("INSERT INTO temp VALUES (0, \"foo  \");", &mut interpreter).unwrap();
+
+    assert!(test_sql(
+        "UPDATE temp SET id = 10, name = \"bar  \" WHERE id = 0;",
+        &mut interpreter
+    ).is_ok());
+}
+
+// TODO: add support for literal = literal in parser
+// #[test]
+// fn test_update_with_constant_expression() {
+//     let mut interpreter = setup_interpreter();
+//
+//     test_sql("CREATE DATABASE db1; CONNECT TO db1;", &mut interpreter).unwrap();
+//     test_sql("CREATE TABLE temp (id INT, name CHAR(5));", &mut interpreter).unwrap();
+//     test_sql("INSERT INTO temp VALUES (0, \"foo  \");", &mut interpreter).unwrap();
+//
+//     assert!(test_sql(
+//         "UPDATE temp SET name = \"bar  \" WHERE 1 = 1;\
+//         UPDATE tem SET id = 6 WHERE 1 = 0;",
+//         &mut interpreter
+//     ).is_ok());
+// }
+
+#[test]
+fn test_update_type_mismatch() {
+    let mut interpreter = setup_interpreter();
+
+    test_sql("CREATE DATABASE db1; CONNECT TO db1;", &mut interpreter).unwrap();
+    test_sql("CREATE TABLE temp (id INT, name CHAR(5));", &mut interpreter).unwrap();
+    test_sql("INSERT INTO temp VALUES (0, \"foo  \");", &mut interpreter).unwrap();
+
+    assert!(test_sql(
+        "UPDATE temp SET id = \"hello\" WHERE id = 0;",
+        &mut interpreter
+    ).is_err());
+}
+
+#[test]
+fn test_update_invalid_column() {
+    let mut interpreter = setup_interpreter();
+
+    test_sql("CREATE DATABASE db1; CONNECT TO db1;", &mut interpreter).unwrap();
+    test_sql("CREATE TABLE temp (id INT, name CHAR(5));", &mut interpreter).unwrap();
+
+    assert!(test_sql(
+        "UPDATE temp SET age = 10;",
+        &mut interpreter
+    ).is_err());
+}
+
+#[test]
+fn test_update_invalid_predicate_type() {
+    let mut interpreter = setup_interpreter();
+
+    test_sql("CREATE DATABASE db1; CONNECT TO db1;", &mut interpreter).unwrap();
+    test_sql("CREATE TABLE temp (id INT, name CHAR(5));", &mut interpreter).unwrap();
+    test_sql("INSERT INTO temp VALUES (0, \"foo  \");", &mut interpreter).unwrap();
+
+    assert!(test_sql(
+        "UPDATE temp SET name = \"bar  \" WHERE name;",
+        &mut interpreter
+    ).is_err());
+}
+
+#[test]
 fn test_table_operations_without_connection() {
     let mut interpreter = setup_interpreter();
     test_sql("CREATE DATABASE db1;", &mut interpreter).unwrap();

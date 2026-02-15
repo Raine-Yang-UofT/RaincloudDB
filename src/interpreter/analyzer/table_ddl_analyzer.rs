@@ -1,6 +1,4 @@
-use std::cmp::PartialEq;
 use std::collections::HashSet;
-use std::ops::Deref;
 use crate::compiler::ast::{Assignment, ColumnDef, DataType, ExprType, Expression, Literal, RowDef};
 use crate::compiler::bounded_ast::{BoundAssignment, BoundStmt};
 use crate::interpreter::analyzer::Analyzer;
