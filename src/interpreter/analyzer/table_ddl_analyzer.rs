@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use crate::compiler::ast::{Assignment, ColumnDef, DataType, ExprType, Expression, Literal, RowDef};
+use crate::compiler::ast::{Assignment, ColumnDef, DataType, Expression, Literal, RowDef};
 use crate::compiler::bounded_ast::{BoundAssignment, BoundStmt};
 use crate::interpreter::analyzer::Analyzer;
 use crate::types::ColumnId;
@@ -120,11 +120,7 @@ impl Analyzer {
         // bind WHERE clause
         let bound_selection = match selection {
             Some(expr) => {
-                let bound = self.analyze_expression(expr, schema)?;
-                if *bound.get_type() != ExprType::Bool {
-                    return Err("WHERE clause must evaluate to a boolean expression".to_string());
-                }
-                Some(bound)
+                Some(self.analyze_where_clause(expr, schema)?)
             }
             None => None,
         };

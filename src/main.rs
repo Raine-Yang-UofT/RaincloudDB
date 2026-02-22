@@ -6,10 +6,13 @@ use raincloud_db::interpreter::Interpreter;
 fn main() {
     let input = "
      DROP DATABASE test;
-     --CREATE DATABASE test;
-     --CONNECT TO test;
-     --CREATE TABLE test_table ( a INT, b CHAR(200) );
-     --DROP TABLE test_table;
+     CREATE DATABASE test;
+     CONNECT TO test;
+     CREATE TABLE test_table ( a INT, b CHAR(3) );
+     INSERT INTO test_table VALUES (10, \"abc\"), (10, \"cde\"), (30, \"xyz\");
+     SELECT a, b FROM test_table WHERE a=10;
+     UPDATE test_table SET a = 10 WHERE b = \"xyz\";
+     SELECT a, b FROM test_table WHERE a=10;
       ";
     let mut scanner = Scanner::new(input);
     let mut parser = Parser::new(&mut scanner);

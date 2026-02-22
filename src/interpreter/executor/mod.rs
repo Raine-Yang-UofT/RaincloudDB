@@ -1,6 +1,7 @@
 mod database_executor;
 mod table_ddl_executor;
 mod expression_executor;
+mod select_executor;
 
 use std::sync::{Arc, RwLock};
 use crate::compiler::ast::RowDef;
@@ -33,7 +34,8 @@ impl Executor {
             BoundStmt::Insert { table, rows } => self.insert_table(&table, &rows),
             BoundStmt::Update { table, assignments, selection } => 
                 self.update_table(&table, &assignments, &selection),
-            _ => Err("Unsupported statement".to_string()),
+            BoundStmt::Select { table, columns, selection } =>
+                self.select(&table, &columns, &selection),
         }
     }
 }

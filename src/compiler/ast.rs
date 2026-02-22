@@ -1,3 +1,4 @@
+use std::fmt;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,6 +69,17 @@ pub enum Literal {
     Int(i32),
     String(String),
     Bool(bool),
+}
+
+impl fmt::Display for Literal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Literal::Int(v) => write!(f, "{v}"),
+            Literal::String(v) => write!(f, "'{v}'"),
+            Literal::Bool(true) => write!(f, "TRUE"),
+            Literal::Bool(false) => write!(f, "FALSE"),
+        }
+    }
 }
 
 /// Assignment statement in update

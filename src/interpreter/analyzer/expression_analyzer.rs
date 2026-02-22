@@ -4,6 +4,16 @@ use crate::interpreter::analyzer::Analyzer;
 use crate::interpreter::catalog::TableSchema;
 
 impl Analyzer {
+
+    /// analyze WHERE condition in SQL statement
+    pub fn analyze_where_clause(&self, selection: &Expression, schema: &TableSchema) -> Result<BoundExpr, String> {
+        let bound = self.analyze_expression(selection, schema)?;
+        if *bound.get_type() != ExprType::Bool {
+            return Err("WHERE clause must evaluate to a boolean expression".to_string());
+        }
+        Ok(bound)
+    }
+
     pub fn analyze_expression(&self, expr: &Expression, schema: &TableSchema) -> Result<BoundExpr, String> {
         match expr {
             Expression::Literal(lit) => self.analyze_literal(lit),

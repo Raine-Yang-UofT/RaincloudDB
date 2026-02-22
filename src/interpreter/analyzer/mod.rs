@@ -1,6 +1,7 @@
 mod database_analyzer;
 mod table_ddl_analyzer;
 mod expression_analyzer;
+mod select_analyzer;
 
 use std::sync::{Arc, RwLock};
 use crate::compiler::ast::Statement;
@@ -42,9 +43,8 @@ impl Analyzer {
             Statement::Update { table, assignments, selection } => {
                 self.analyze_update_table(table, assignments, selection)
             }
-            _ => {
-                // statements that require no semantic analysis
-                Err(format!("Unknown statement: {:?}", stmt))
+            Statement::Select { columns, table, selection } => {
+                self.analyze_select(table, columns, selection)
             }
         }
     }
