@@ -20,10 +20,10 @@ fn test_literal() {
     let expr3 = BoundExpr::Literal(ExprType::Bool, Literal::Bool(true));
     let expr4 = BoundExpr::Literal(ExprType::Int, Literal::Int(-42));
 
-    assert_eq!(executor.execute_expression(&expr1, &ctx), Ok(Literal::Int(10)));
-    assert_eq!(executor.execute_expression(&expr2, &ctx), Ok(Literal::String("Hello World!".to_string())));
-    assert_eq!(executor.execute_expression(&expr3, &ctx), Ok(Literal::Bool(true)));
-    assert_eq!(executor.execute_expression(&expr4, &ctx), Ok(Literal::Int(-42)));
+    assert_eq!(executor.execute_expression(&expr1, &ctx).unwrap(), Literal::Int(10));
+    assert_eq!(executor.execute_expression(&expr2, &ctx).unwrap(), Literal::String("Hello World!".to_string()));
+    assert_eq!(executor.execute_expression(&expr3, &ctx).unwrap(), Literal::Bool(true));
+    assert_eq!(executor.execute_expression(&expr4, &ctx).unwrap(), Literal::Int(-42));
 }
 
 #[test]
@@ -39,12 +39,12 @@ fn test_column_access() {
     };
 
     assert_eq!(
-        executor.execute_expression(&BoundExpr::Column(ExprType::Int, 0), &ctx),
-        Ok(Literal::Int(25))
+        executor.execute_expression(&BoundExpr::Column(ExprType::Int, 0), &ctx).unwrap(),
+        Literal::Int(25)
     );
     assert_eq!(
-        executor.execute_expression(&BoundExpr::Column(ExprType::Char, 1), &ctx),
-        Ok(Literal::String("Alice".to_string()))
+        executor.execute_expression(&BoundExpr::Column(ExprType::Char, 1), &ctx).unwrap(),
+        Literal::String("Alice".to_string())
     );
 }
 
@@ -70,8 +70,8 @@ fn test_equals_literals_true() {
     );
 
     assert_eq!(
-        executor.execute_expression(&expr, &ctx),
-        Ok(Literal::Bool(true))
+        executor.execute_expression(&expr, &ctx).unwrap(),
+        Literal::Bool(true)
     );
 }
 
@@ -87,8 +87,8 @@ fn test_equals_literals_false() {
     );
 
     assert_eq!(
-        executor.execute_expression(&expr, &ctx),
-        Ok(Literal::Bool(false))
+        executor.execute_expression(&expr, &ctx).unwrap(),
+        Literal::Bool(false)
     );
 }
 
@@ -106,8 +106,8 @@ fn test_equals_column_literal() {
     );
 
     assert_eq!(
-        executor.execute_expression(&expr, &ctx),
-        Ok(Literal::Bool(true))
+        executor.execute_expression(&expr, &ctx).unwrap(),
+        Literal::Bool(true)
     );
 }
 
@@ -127,8 +127,8 @@ fn test_equals_column_column() {
     );
 
     assert_eq!(
-        executor.execute_expression(&expr, &ctx),
-        Ok(Literal::Bool(true))
+        executor.execute_expression(&expr, &ctx).unwrap(),
+        Literal::Bool(true)
     );
 }
 
@@ -150,8 +150,8 @@ fn test_nested_equals() {
     );
 
     assert_eq!(
-        executor.execute_expression(&outer, &ctx),
-        Ok(Literal::Bool(true))
+        executor.execute_expression(&outer, &ctx).unwrap(),
+        Literal::Bool(true)
     );
 }
 

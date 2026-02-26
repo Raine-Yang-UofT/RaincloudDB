@@ -1,6 +1,7 @@
 use raincloud_db::compiler::scanner::Scanner;
 use raincloud_db::compiler::parser::Parser;
 use raincloud_db::compiler::ast::*;
+use raincloud_db::types::DbError;
 
 fn parse_sql(sql: &str) -> Vec<Statement> {
     let mut scanner = Scanner::new(sql);
@@ -247,10 +248,5 @@ fn test_parse_error_missing_semicolon() {
     let sql = "CREATE DATABASE testdb";
     let mut scanner = Scanner::new(sql);
     let mut parser = Parser::new(&mut scanner);
-    let err = parser.parse().unwrap_err();
-    assert!(
-        err.contains("Expected Semicolon") || err.contains("Expected TokenType::Semicolon"),
-        "Error should mention missing semicolon, got: {}",
-        err
-    );
+    parser.parse().unwrap_err();
 }

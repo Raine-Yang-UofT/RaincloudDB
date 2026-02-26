@@ -13,6 +13,27 @@ pub type ColumnId = usize;
 // defined constats
 pub const FLUSH: bool = true;
 pub const NO_FLUSH: bool = false;
+pub type DbResult<T> = Result<T, DbError>;
+#[derive(Debug)]
+pub enum DbError {
+    // scanner errors
+    ScannerError(String),
+    // parser errors
+    ParseError(String),
+    // interpreter errors
+    DatabaseNotFound(String),
+    DuplicateDatabase(String),
+    ConnectionNotFound(String),
+    ConnectionExist(String),
+    TableNotFound(String),
+    DuplicateTable(String),
+    ColumnNotFound(String),
+    DuplicateColumn(String),
+    ColumnMismatch(String),
+    TypeMismatch(String),
+    ExpressionNotFound(String),
+    InternalError(String),
+}
 
 // global file names
 pub const DATA_FILE: &str = "data.rcdb";

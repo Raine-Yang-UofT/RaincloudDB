@@ -4,13 +4,14 @@ use paste::paste;
 use crate::compiler::ast::{ColumnDef, Literal, RowDef};
 use crate::interpreter::executor::{Executor, ExprContext};
 use crate::interpreter::catalog::TableSchema;
-use crate::types::NO_FLUSH;
+use crate::types::{DbError, DbResult, NO_FLUSH};
 use crate::{with_create_pages, with_read_pages, with_write_pages};
 use crate::compiler::bounded_ast::{BoundAssignment, BoundExpr};
+use crate::interpreter::ExecResult;
 
 impl Executor {
 
-    pub fn create_table(&mut self, name: &str, columns: Vec<ColumnDef>) -> Result<String, String> {
+    pub fn create_table(&mut self, name: &str, columns: Vec<ColumnDef>) -> DbResult<ExecResult> {
         let mut ctx = self.context.write().unwrap();
         let database = ctx.current_db.clone().unwrap();
 
@@ -34,12 +35,12 @@ impl Executor {
         };
 
         match ctx.catalog.add_table(&database, schema) {
-            Ok(_) => Ok(format!("Table '{}' created successfully", name)),
-            Err(e) => Err(e),
+            Ok(_) => Ok(ExecResult::Success(format!("Table '{}' created successfully", name))),
+            Err(e) => Err(DbError::InternalError(e)),
         }
     }
 
-    pub fn drop_table(&mut self, name: &str) -> Result<String, String> {
+    pub fn drop_table(&mut self, name: &str) -> DbResult<ExecResult> {
         let mut ctx = self.context.write().unwrap();
         let database = ctx.current_db.clone().unwrap();
 
@@ -57,12 +58,12 @@ impl Executor {
 
         // remove table information from catalog
         match ctx.catalog.remove_table(&database, name) {
-            Ok(_) => Ok(format!("Table '{}' dropped successfully", name)),
-            Err(e) => Err(e),
+            Ok(_) => Ok(ExecResult::Success(format!("Table '{}' dropped successfully", name))),
+            Err(e) => Err(DbError::InternalError(e)),
         }
     }
 
-    pub fn insert_table(&mut self, table: &str, rows: &Vec<RowDef>) -> Result<String, String> {
+    pub fn insert_table(&mut self, table: &str, rows: &Vec<RowDef>) -> DbResult<ExecResult> {
         let ctx = self.context.read().unwrap();
         let database = ctx.current_db.clone().unwrap();
         let num_rows = rows.len();
@@ -96,7 +97,7 @@ impl Executor {
             
         }
 
-        Ok(format!("Insert {} records to table '{}'", num_rows, table))
+        Ok(ExecResult::AffectedRows(num_rows, format!("Insert {} records to table '{}'", num_rows, table)))
     }
 
     pub fn update_table(
@@ -104,7 +105,7 @@ impl Executor {
         table: &str, 
         assignments: &Vec<BoundAssignment>,
         selection: &Option<BoundExpr>
-    ) -> Result<String, String> {
+    ) -> DbResult<ExecResult> {
 
         let ctx = self.context.read().unwrap();
         let database = ctx.current_db.clone().unwrap();
@@ -185,6 +186,6 @@ impl Executor {
             page_id = next_id;
         }
 
-        Ok(format!("Updated {} rows in table '{}'", updated_count, table))
+        Ok(ExecResult::AffectedRows(updated_count, format!("Updated {} rows in table '{}'", updated_count, table)))
     }
 }

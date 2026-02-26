@@ -1,9 +1,9 @@
 use paste::paste;
 use crate::compiler::ast::{Literal, RowDef};
 use crate::compiler::bounded_ast::BoundExpr;
-use crate::interpreter::catalog::TableSchema;
+use crate::interpreter::ExecResult;
 use crate::interpreter::executor::{Executor, ExprContext};
-use crate::types::ColumnId;
+use crate::types::{ColumnId, DbResult};
 use crate::with_read_pages;
 
 impl Executor {
@@ -13,7 +13,7 @@ impl Executor {
         table: &str,
         columns: &Vec<ColumnId>,
         selection: &Option<BoundExpr>
-    ) -> Result<String, String> {
+    ) -> DbResult<ExecResult> {
 
         let ctx = self.context.read().unwrap();
         let database = ctx.current_db.clone().unwrap();
@@ -45,7 +45,7 @@ impl Executor {
 
                     let mut projected = Vec::new();
                     for col in columns {
-                        projected.push(row.record[*col].clone());
+                        projected.push(row.record[*col].clone().to_string());
                     }
 
                     result.push(projected);
@@ -54,10 +54,14 @@ impl Executor {
             });
         }
 
-        Ok(self.format_result(schema, columns, result))
+        Ok(ExecResult::QueryResult(result))
     }
 
-    fn format_result(&self, schema: &TableSchema, columns: &Vec<ColumnId>, rows: Vec<Vec<Literal>>) -> String {
+    pub(crate) fn format_result(&self, table: &str, columns: &Vec<ColumnId>, rows: Vec<Vec<String>>) -> String {
+        let ctx = self.context.read().unwrap();
+        let database = ctx.current_db.clone().unwrap();
+
+        let schema = ctx.catalog.get_table_schema(&database, table).unwrap();
         let mut output = String::new();
 
         // format header

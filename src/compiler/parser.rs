@@ -1,8 +1,7 @@
 use crate::compiler::ast::*;
 use crate::compiler::scanner::Scanner;
 use crate::compiler::token::{Token, TokenType};
-
-type ParseResult<T> = Result<T, String>;
+use crate::types::{DbError, DbResult};
 
 pub struct Parser {
     tokens: Vec<Token>,
@@ -26,7 +25,7 @@ impl Parser {
     }
 
     /// Main parser method
-    pub fn parse(&mut self) -> ParseResult<Vec<Statement>> {
+    pub fn parse(&mut self) -> DbResult<Vec<Statement>> {
         let mut statements = vec![];
         while !self.is_at_end() {
             statements.push(self.parse_statement()?);
@@ -45,7 +44,7 @@ impl Parser {
     | update_stmt
     | select_stmt;
      */
-    fn parse_statement(&mut self) -> ParseResult<Statement> {
+    fn parse_statement(&mut self) -> DbResult<Statement> {
         match self.peek().token_type {
             TokenType::Create => self.parse_create(),
             TokenType::Drop   => self.parse_drop(),
@@ -54,7 +53,7 @@ impl Parser {
             TokenType::Insert => self.parse_insert(),
             TokenType::Update => self.parse_update(),
             TokenType::Select => self.parse_select(),
-            _ => Err(format!("Unexpected token {:?} at line {}", self.peek(), self.peek().line)),
+            _ => Err(DbError::ParseError(format!("Unexpected token {:?} at line {}", self.peek(), self.peek().line))),
         }
     }
 
@@ -62,7 +61,7 @@ impl Parser {
     create_database_stmt := CREATE DATABASE identifier;
     create_table_stmt := CREATE TABLE identifier ( column_def_stmt (, column_def_stmt)* );
      */
-    fn parse_create(&mut self) -> ParseResult<Statement> {
+    fn parse_create(&mut self) -> DbResult<Statement> {
         self.consume(TokenType::Create)?;
         let token = self.peek();
         match token.token_type {
@@ -87,7 +86,7 @@ impl Parser {
 
                 Ok(Statement::CreateTable { name, columns })
             },
-            _ => Err(format!("Expected DATABASE or TABLE at line {}", token.line).into()),
+            _ => Err(DbError::ParseError(format!("Expected DATABASE or TABLE at line {}", token.line).into())),
         }
     }
 
@@ -95,7 +94,7 @@ impl Parser {
     drop_database_stmt := DROP DATABASE identifier;
     drop_table_stmt := DROP TABLE identifier;
     */
-    fn parse_drop(&mut self) -> ParseResult<Statement> {
+    fn parse_drop(&mut self) -> DbResult<Statement> {
         self.consume(TokenType::Drop)?;
         let token = self.peek();
         match token.token_type {
@@ -111,14 +110,14 @@ impl Parser {
                 self.consume(TokenType::Semicolon)?;
                 Ok(Statement::DropTable { name })
             },
-            _ => Err(format!("Expected DATABASE or TABLE at line {}", token.line).into()),
+            _ => Err(DbError::ParseError(format!("Expected DATABASE or TABLE at line {}", token.line).into())),
         }
     }
 
     /**
     connect_database_stmt := CONNECT TO identifier ;
     */
-    fn parse_connect(&mut self) -> ParseResult<Statement> {
+    fn parse_connect(&mut self) -> DbResult<Statement> {
         self.consume(TokenType::Connect)?;
         self.consume(TokenType::To)?;
         let name = self.consume_identifier()?;
@@ -129,7 +128,7 @@ impl Parser {
     /**
     disconnect_database_stmt := DISCONNECT;
     */
-    fn parse_disconnect(&mut self) -> ParseResult<Statement> {
+    fn parse_disconnect(&mut self) -> DbResult<Statement> {
         self.consume(TokenType::Disconnect)?;
         self.consume(TokenType::Semicolon)?;
         Ok(Statement::DisconnectDatabase { })
@@ -138,7 +137,7 @@ impl Parser {
     /**
     column_def_stmt := identifier: data_type_stmt
     */
-    fn parse_column_def(&mut self) -> ParseResult<ColumnDef> {
+    fn parse_column_def(&mut self) -> DbResult<ColumnDef> {
         let name = self.consume_identifier()?;
         let data_type = self.parse_data_type()?;
         Ok(ColumnDef { name, data_type })
@@ -147,7 +146,7 @@ impl Parser {
     /**
     data_type_stmt := INT | CHAR ( int_literal )
     */
-    fn parse_data_type(&mut self) -> ParseResult<DataType> {
+    fn parse_data_type(&mut self) -> DbResult<DataType> {
         let token = self.advance();
         match token.token_type {
             TokenType::Int => Ok(DataType::Int),
@@ -157,14 +156,14 @@ impl Parser {
                 self.consume(TokenType::RParen)?;
                 Ok(DataType::Char(len))
             }
-            _ => Err(format!("Expected valid data type on line {:?}", token.line))
+            _ => Err(DbError::ParseError(format!("Expected valid data type on line {:?}", token.line)))
         }
     }
 
     /**
     insert_stmt := INSERT INTO identifier VALUES row ( , row )* ;
     */
-    fn parse_insert(&mut self) -> ParseResult<Statement> {
+    fn parse_insert(&mut self) -> DbResult<Statement> {
         self.consume(TokenType::Insert)?;
         self.consume(TokenType::Into)?;
 
@@ -185,7 +184,7 @@ impl Parser {
     /**
     update_stmt := UPDATE identifier SET ( assignment (,assignment)* ) (WHERE expression)?;
     */
-    fn parse_update(&mut self) -> ParseResult<Statement> {
+    fn parse_update(&mut self) -> DbResult<Statement> {
         self.consume(TokenType::Update)?;
         let table = self.consume_identifier()?;
 
@@ -207,7 +206,7 @@ impl Parser {
     /**
     select_stmt := SELECT identifier (,identifier)* FROM identifier (WHERE expression)?;
     */
-    fn parse_select(&mut self) -> ParseResult<Statement> {
+    fn parse_select(&mut self) -> DbResult<Statement> {
         self.consume(TokenType::Select)?;
 
         let mut columns = vec![self.consume_identifier()?];
@@ -230,7 +229,7 @@ impl Parser {
     /**
     assignment := identifier = literal
     */
-    fn parse_assignment(&mut self) -> ParseResult<Assignment> {
+    fn parse_assignment(&mut self) -> DbResult<Assignment> {
         let column = self.consume_identifier()?;
         self.consume(TokenType::Equal)?;
         let value = self.parse_literal()?;
@@ -243,7 +242,7 @@ impl Parser {
     identifier |
     (literal | identifier ) = (literal | identifier)
      */
-    fn parse_expression(&mut self) -> ParseResult<Expression> {
+    fn parse_expression(&mut self) -> DbResult<Expression> {
         let left = Expression::Identifier(self.consume_identifier()?);
         self.consume(TokenType::Equal)?;
         let right = Expression::Literal(self.parse_literal()?);
@@ -253,7 +252,7 @@ impl Parser {
     /**
     row := ( literal ( , literal )* )
     */
-    fn parse_value_row(&mut self) -> ParseResult<RowDef> {
+    fn parse_value_row(&mut self) -> DbResult<RowDef> {
         self.consume(TokenType::LParen)?;
 
         let mut row = vec![self.parse_literal()?];
@@ -266,13 +265,13 @@ impl Parser {
     }
 
     /// literal
-    fn parse_literal(&mut self) -> ParseResult<Literal> {
+    fn parse_literal(&mut self) -> DbResult<Literal> {
         let token = self.advance();
         match token.token_type {
             TokenType::IntLiteral(v) => Ok(Literal::Int(v)),
             TokenType::StringLiteral(s) => Ok(Literal::String(s)),
             TokenType::BoolLiteral(b) => Ok(Literal::Bool(b)),
-            t => Err(format!("Expected literal, got {:?} at line {:?}", t, token.line)),
+            t => Err(DbError::ParseError(format!("Expected literal, got {:?} at line {:?}", t, token.line))),
         }
     }
 
@@ -299,33 +298,33 @@ impl Parser {
         }
     }
 
-    fn consume(&mut self, token: TokenType) -> ParseResult<()> {
+    fn consume(&mut self, token: TokenType) -> DbResult<()> {
         if self.peek().token_type == token {
             self.advance();
             Ok(())
         } else {
-            Err(format!("Expected {:?}, got {:?}", token, self.peek()))
+            Err(DbError::ParseError(format!("Expected {:?}, got {:?}", token, self.peek())))
         }
     }
 
     /// identifier
-    fn consume_identifier(&mut self) -> ParseResult<String> {
+    fn consume_identifier(&mut self) -> DbResult<String> {
         if let TokenType::Identifier(name) = &self.peek().token_type {
             let name = name.clone();
             self.advance();
             Ok(name)
         } else {
-            Err(format!("Expected identifier, got {:?}", self.peek()))
+            Err(DbError::ParseError(format!("Expected identifier, got {:?}", self.peek())))
         }
     }
 
     /// int literal
-    fn consume_int_literal(&mut self) -> ParseResult<i32> {
+    fn consume_int_literal(&mut self) -> DbResult<i32> {
         if let TokenType::IntLiteral(v) = self.peek().token_type {
             self.advance();
             Ok(v)
         } else {
-            Err(format!("Expected integer literal, got {:?}", self.peek()))
+            Err(DbError::ParseError(format!("Expected integer literal, got {:?}", self.peek())))
         }
     }
 }

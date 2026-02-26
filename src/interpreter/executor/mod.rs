@@ -6,7 +6,9 @@ mod select_executor;
 use std::sync::{Arc, RwLock};
 use crate::compiler::ast::RowDef;
 use crate::compiler::bounded_ast::BoundStmt;
+use crate::interpreter::ExecResult;
 use crate::interpreter::execution_context::ExecutionContext;
+use crate::types::DbResult;
 
 pub struct Executor {
     pub context: Arc<RwLock<ExecutionContext>>,
@@ -23,7 +25,7 @@ impl Executor {
         Self { context }
     }
 
-    pub fn execute(&mut self, stmt: BoundStmt) -> Result<String, String> {
+    pub fn execute(&mut self, stmt: BoundStmt) -> DbResult<ExecResult> {
         match stmt {
             BoundStmt::CreateDatabase { name } => self.create_database(&name),
             BoundStmt::DropDatabase { name } => self.drop_database(&name),
@@ -34,8 +36,9 @@ impl Executor {
             BoundStmt::Insert { table, rows } => self.insert_table(&table, &rows),
             BoundStmt::Update { table, assignments, selection } => 
                 self.update_table(&table, &assignments, &selection),
-            BoundStmt::Select { table, columns, selection } =>
-                self.select(&table, &columns, &selection),
+            BoundStmt::Select { table, columns, selection } => {
+                self.select(&table, &columns, &selection)
+            }
         }
     }
 }

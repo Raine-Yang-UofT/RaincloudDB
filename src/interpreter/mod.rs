@@ -10,6 +10,15 @@ use catalog::Catalog;
 use crate::compiler::ast::Statement;
 use crate::interpreter::analyzer::Analyzer;
 use crate::interpreter::executor::Executor;
+use crate::types::DbError::DatabaseNotFound;
+use crate::types::DbResult;
+
+#[derive(Debug)]
+pub enum ExecResult {
+    Success(String),
+    AffectedRows(usize, String),
+    QueryResult(Vec<Vec<String>>),
+}
 
 pub struct Interpreter {
     pub context: Arc<RwLock<ExecutionContext>>,
@@ -38,8 +47,8 @@ impl Interpreter {
         Self { context }
     }
 
-    /// Entry point for SQL interpreter
-    pub fn execute(&mut self, stmt: Statement) -> Result<String, String> {
+    /// Entry point for interactive SQL interpreter
+    pub fn execute(&mut self, stmt: Statement) -> DbResult<ExecResult> {
         // only database-level statements are permitted if a database connection does not exist
         if self.context.read().unwrap().current_db.is_none() {
             if !matches!(stmt,
@@ -48,7 +57,7 @@ impl Interpreter {
                 Statement::ConnectDatabase { name: _ } |
                 Statement::DisconnectDatabase {}
             ) {
-                return Err("A database connection does not exist".to_string());
+                return Err(DatabaseNotFound("A database connection does not exist".to_string()));
             }
         }
 
@@ -56,7 +65,7 @@ impl Interpreter {
         let mut executor = Executor::new(Arc::clone(&self.context));
 
         match analyzer.analyze(stmt) { 
-            Ok(stmt) => executor.execute(stmt), 
+            Ok(stmt) => executor.execute(stmt),
             Err(msg) => Err(msg),
         }
     }

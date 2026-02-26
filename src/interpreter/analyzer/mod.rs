@@ -6,7 +6,9 @@ mod select_analyzer;
 use std::sync::{Arc, RwLock};
 use crate::compiler::ast::Statement;
 use crate::compiler::bounded_ast::BoundStmt;
+use crate::interpreter::ExecResult;
 use crate::interpreter::execution_context::ExecutionContext;
+use crate::types::DbResult;
 
 pub struct Analyzer {
     context: Arc<RwLock<ExecutionContext>>,
@@ -17,7 +19,7 @@ impl Analyzer {
         Self { context }
     }
 
-    pub fn analyze(&mut self, stmt: Statement) -> Result<BoundStmt, String> {
+    pub fn analyze(&mut self, stmt: Statement) -> DbResult<BoundStmt> {
         match &stmt {
             Statement::CreateDatabase { name } => {
                 self.analyze_create_database(name)

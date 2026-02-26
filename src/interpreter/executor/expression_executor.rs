@@ -1,10 +1,10 @@
 use crate::compiler::ast::{Literal, RowDef};
 use crate::compiler::bounded_ast::BoundExpr;
 use crate::interpreter::executor::{Executor, ExprContext};
-use crate::types::ColumnId;
+use crate::types::{ColumnId, DbError, DbResult};
 
 impl Executor {
-    pub fn execute_expression(&self, expr: &BoundExpr, ctx: &ExprContext) -> Result<Literal, String> {
+    pub fn execute_expression(&self, expr: &BoundExpr, ctx: &ExprContext) -> DbResult<Literal> {
         match expr {
             BoundExpr::Literal(_, literal) => Ok(literal.clone()),
             BoundExpr::Column(_, index) =>
@@ -14,13 +14,13 @@ impl Executor {
         }
     }
 
-    pub fn execute_column(&self, index: ColumnId, row: &RowDef) -> Result<Literal, String> {
+    pub fn execute_column(&self, index: ColumnId, row: &RowDef) -> DbResult<Literal> {
         row.record.get(index)
             .cloned()
-            .ok_or_else(|| format!("column {} not found", index))
+            .ok_or_else(|| DbError::ColumnNotFound(format!("column {} not found", index)))
     }
 
-    pub fn execute_equal(&self, lfs: &BoundExpr, rhs: &BoundExpr, ctx: &ExprContext) -> Result<Literal, String> {
+    pub fn execute_equal(&self, lfs: &BoundExpr, rhs: &BoundExpr, ctx: &ExprContext) -> DbResult<Literal> {
         let lfs = self.execute_expression(lfs, ctx)?;
         let rhs = self.execute_expression(rhs, ctx)?;
         if lfs == rhs {
