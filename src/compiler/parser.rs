@@ -14,7 +14,7 @@ impl Parser {
     pub fn new(scanner: &mut Scanner) -> Self {
         let mut tokens = vec![];
         loop {
-            let token = scanner.next_token();
+            let token = scanner.next_token().unwrap();
             tokens.push(token.clone());
             if token.token_type == TokenType::Eof {
                 break;

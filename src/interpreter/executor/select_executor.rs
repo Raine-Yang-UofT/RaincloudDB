@@ -56,31 +56,4 @@ impl Executor {
 
         Ok(ExecResult::QueryResult(result))
     }
-
-    pub(crate) fn format_result(&self, table: &str, columns: &Vec<ColumnId>, rows: Vec<Vec<String>>) -> String {
-        let ctx = self.context.read().unwrap();
-        let database = ctx.current_db.clone().unwrap();
-
-        let schema = ctx.catalog.get_table_schema(&database, table).unwrap();
-        let mut output = String::new();
-
-        // format header
-        for id in columns {
-            output.push_str(&format!("| {:15}", schema.columns[*id].name));
-        }
-        for _ in columns {
-            output.push_str("+-----------------");
-        }
-        output.push_str("+\n");
-
-        // format rows
-        for row in rows {
-            for value in row {
-                output.push_str(&format!("| {:15} ", value));
-            }
-            output.push_str("|\n");
-        }
-
-        output
-    }
 }

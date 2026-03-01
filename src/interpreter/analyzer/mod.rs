@@ -6,7 +6,6 @@ mod select_analyzer;
 use std::sync::{Arc, RwLock};
 use crate::compiler::ast::Statement;
 use crate::compiler::bounded_ast::BoundStmt;
-use crate::interpreter::ExecResult;
 use crate::interpreter::execution_context::ExecutionContext;
 use crate::types::DbResult;
 

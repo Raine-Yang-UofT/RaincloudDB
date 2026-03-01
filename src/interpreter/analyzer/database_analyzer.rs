@@ -50,7 +50,7 @@ impl Analyzer {
 
         // check the database exists
         if !ctx.catalog.has_database(name) {
-            return Err(DbError::DuplicateDatabase(format!("Database {} already exists", name)));
+            return Err(DbError::DatabaseNotFound(format!("Database {} not found", name)));
         }
 
         Ok(BoundStmt::ConnectDatabase { name: String::from(name) })

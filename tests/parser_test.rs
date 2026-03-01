@@ -1,7 +1,6 @@
 use raincloud_db::compiler::scanner::Scanner;
 use raincloud_db::compiler::parser::Parser;
 use raincloud_db::compiler::ast::*;
-use raincloud_db::types::DbError;
 
 fn parse_sql(sql: &str) -> Vec<Statement> {
     let mut scanner = Scanner::new(sql);

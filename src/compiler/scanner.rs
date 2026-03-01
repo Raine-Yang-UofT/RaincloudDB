@@ -1,4 +1,5 @@
 use crate::compiler::token::{Token, TokenType};
+use crate::types::{DbError, DbResult};
 
 pub struct Scanner {
     source: Vec<char>,
@@ -41,14 +42,14 @@ impl Scanner {
     }
 
     /// Create token of given type
-    fn add_token(&self, token_type: TokenType) -> Token {
+    fn add_token(&self, token_type: TokenType) -> DbResult<Token> {
         let lexeme: String = self.source[self.start..self.current].iter().collect();
 
-        Token {
+        Ok(Token {
             token_type,
             lexeme,
             line: self.line,
-        }
+        })
     }
 
     /// Skip whitespace and comment
@@ -73,7 +74,7 @@ impl Scanner {
     }
 
     /// Scan keyword and identifier
-    fn identifier(&mut self) -> Token {
+    fn identifier(&mut self) -> DbResult<Token> {
         while self.peek().is_ascii_alphanumeric() || self.peek() == '_' {
             self.advance();
         }
@@ -108,7 +109,7 @@ impl Scanner {
     }
 
     /// Scan integer
-    fn number(&mut self) -> Token {
+    fn number(&mut self) -> DbResult<Token> {
         while self.peek().is_ascii_digit() {
             self.advance();
         }
@@ -119,7 +120,7 @@ impl Scanner {
     }
 
     /// Scan string
-    fn string(&mut self, quote: char) -> Token {
+    fn string(&mut self, quote: char) -> DbResult<Token> {
         while self.peek() != quote && !self.is_at_end() {
             if self.peek() == '\n' {
                 self.line += 1;
@@ -128,7 +129,7 @@ impl Scanner {
         }
 
         if self.is_at_end() {
-            panic!("unterminated string literal at line {}", self.line);
+            return Err(DbError::ScannerError(format!("unterminated string literal at line {}", self.line)));
         }
 
         // closing quote
@@ -139,7 +140,7 @@ impl Scanner {
     }
 
     /// Scan tokens from text
-    pub fn next_token(&mut self) -> Token {
+    pub fn next_token(&mut self) -> DbResult<Token> {
         self.skip_whitespace();
         self.start = self.current;
 
@@ -158,7 +159,7 @@ impl Scanner {
             '0'..='9' => self.number(),
             'A'..='Z' | 'a'..='z' | '_' =>self.identifier(),
             _ => {
-                panic!("Unexpected character '{}' at line {}", c, self.line);
+                Err(DbError::ScannerError(format!("Unexpected character '{}' at line {}", c, self.line)))
             }
         }
     }
