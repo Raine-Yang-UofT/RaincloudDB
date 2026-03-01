@@ -15,7 +15,7 @@ fn test_create_database() {
 
     assert_eq!(stmts.len(), 1);
     match &stmts[0] {
-        Statement::CreateDatabase { name } => assert_eq!(name, "testdb"),
+        Statement::CreateDatabase { name } => assert_eq!(name, "TESTDB"),
         _ => panic!("Expected CreateDatabase statement"),
     }
 }
@@ -25,17 +25,17 @@ fn test_drop_database() {
     let sql = "DROP DATABASE testdb;";
     let stmts = parse_sql(sql);
     match &stmts[0] {
-        Statement::DropDatabase { name } => assert_eq!(name, "testdb"),
+        Statement::DropDatabase { name } => assert_eq!(name, "TESTDB"),
         _ => panic!("Expected DropDatabase statement"),
     }
 }
 
 #[test]
 fn test_connect_database() {
-    let sql = "CONNECT TO testdb;";
+    let sql = "CONNECT TO tesTdb;";
     let stmts = parse_sql(sql);
     match &stmts[0] {
-        Statement::ConnectDatabase { name } => assert_eq!(name, "testdb"),
+        Statement::ConnectDatabase { name } => assert_eq!(name, "TESTDB"),
         _ => panic!("Expected ConnectDatabase statement"),
     }
 }
@@ -57,11 +57,11 @@ fn test_create_table() {
 
     match &stmts[0] {
         Statement::CreateTable { name, columns } => {
-            assert_eq!(name, "users");
+            assert_eq!(name, "USERS");
             assert_eq!(columns.len(), 2);
-            assert_eq!(columns[0].name, "id");
+            assert_eq!(columns[0].name, "ID");
             assert!(matches!(columns[0].data_type, DataType::Int));
-            assert_eq!(columns[1].name, "name");
+            assert_eq!(columns[1].name, "NAME");
             assert!(matches!(columns[1].data_type, DataType::Char(10)));
         }
         _ => panic!("Expected CreateTable"),
@@ -75,7 +75,7 @@ fn test_insert() {
 
     match &stmts[0] {
         Statement::Insert { table, rows } => {
-            assert_eq!(table, "users");
+            assert_eq!(table, "USERS");
             assert_eq!(rows.len(), 1);
             if let Literal::Int(v) = &rows[0].record[0] {
                 assert_eq!(*v, 1);
@@ -94,12 +94,12 @@ fn test_insert() {
 
 #[test]
 fn test_insert_multiple() {
-    let sql = "INSERT INTO users VALUES (1, 'Alice'), (2, 'Bob');";
+    let sql = "INSERT INTO Users VALUES (1, 'Alice'), (2, 'Bob');";
     let stmts = parse_sql(sql);
 
     match &stmts[0] {
         Statement::Insert { table, rows } => {
-            assert_eq!(table, "users");
+            assert_eq!(table, "USERS");
             assert_eq!(rows.len(), 2);
             if let Literal::Int(v) = &rows[0].record[0] {
                 assert_eq!(*v, 1);
@@ -128,14 +128,14 @@ fn test_insert_multiple() {
 
 #[test]
 fn test_update() {
-    let sql = "UPDATE users SET name = 'Bob';";
+    let sql = "UPDATE USERS SET Name = 'Bob';";
     let stmts = parse_sql(sql);
 
     match &stmts[0] {
         Statement::Update { table, assignments, selection } => {
-            assert_eq!(table, "users");
+            assert_eq!(table, "USERS");
             assert_eq!(assignments.len(), 1);
-            assert_eq!(assignments[0].column, "name");
+            assert_eq!(assignments[0].column, "NAME");
             assert!(matches!(assignments[0].value, Literal::String(ref s) if s == "Bob"));
             assert!(selection.is_none(), "Expected no WHERE clause");
         }
@@ -150,13 +150,13 @@ fn test_update_with_where() {
 
     match &stmts[0] {
         Statement::Update { table, assignments, selection } => {
-            assert_eq!(table, "users");
+            assert_eq!(table, "USERS");
             assert_eq!(assignments.len(), 1);
-            assert_eq!(assignments[0].column, "name");
+            assert_eq!(assignments[0].column, "NAME");
             assert!(matches!(assignments[0].value, Literal::String(ref s) if s == "Bob"));
             match selection {
                 Some(Expression::Equals(l, r)) => {
-                    assert!(matches!(**l, Expression::Identifier(ref name) if name == "id"));
+                    assert!(matches!(**l, Expression::Identifier(ref name) if name == "ID"));
                     assert!(matches!(**r, Expression::Literal(Literal::Int(1))));
                 }
                 _ => panic!("Expected equality expression"),
@@ -173,11 +173,11 @@ fn test_select_with_where() {
 
     match &stmts[0] {
         Statement::Select { columns, table, selection } => {
-            assert_eq!(columns, &vec!["name".to_string(), "age".to_string()]);
-            assert_eq!(table, "users");
+            assert_eq!(columns, &vec!["NAME".to_string(), "AGE".to_string()]);
+            assert_eq!(table, "USERS");
             match selection {
                 Some(Expression::Equals(l, r)) => {
-                    assert!(matches!(**l, Expression::Identifier(ref name) if name == "id"));
+                    assert!(matches!(**l, Expression::Identifier(ref name) if name == "ID"));
                     assert!(matches!(**r, Expression::Literal(Literal::Int(1))));
                 }
                 _ => panic!("Expected WHERE id = 1"),
@@ -194,21 +194,21 @@ fn test_update_multiple_assignments() {
 
     match &stmts[0] {
         Statement::Update { table, assignments, selection } => {
-            assert_eq!(table, "users");
+            assert_eq!(table, "USERS");
             assert_eq!(assignments.len(), 3);
             
-            assert_eq!(assignments[0].column, "name");
+            assert_eq!(assignments[0].column, "NAME");
             assert!(matches!(assignments[0].value, Literal::String(ref s) if s == "Bob"));
 
-            assert_eq!(assignments[1].column, "age");
+            assert_eq!(assignments[1].column, "AGE");
             assert!(matches!(assignments[1].value, Literal::Int(30)));
 
-            assert_eq!(assignments[2].column, "email");
+            assert_eq!(assignments[2].column, "EMAIL");
             assert!(matches!(assignments[2].value, Literal::String(ref s) if s == "bob@example.com"));
 
             match selection {
                 Some(Expression::Equals(l, r)) => {
-                    assert!(matches!(**l, Expression::Identifier(ref name) if name == "id"));
+                    assert!(matches!(**l, Expression::Identifier(ref name) if name == "ID"));
                     assert!(matches!(**r, Expression::Literal(Literal::Int(1))));
                 }
                 _ => panic!("Expected equality expression"),
@@ -223,7 +223,7 @@ fn test_drop_table() {
     let sql = "DROP TABLE users;";
     let stmts = parse_sql(sql);
     match &stmts[0] {
-        Statement::DropTable { name } => assert_eq!(name, "users"),
+        Statement::DropTable { name } => assert_eq!(name, "USERS"),
         _ => panic!("Expected DropTable"),
     }
 }

@@ -102,7 +102,7 @@ impl Scanner {
             "DISCONNECT" => TokenType::Disconnect,
             "TRUE" => TokenType::BoolLiteral(true),
             "FALSE" => TokenType::BoolLiteral(false),
-            _ => TokenType::Identifier(text),
+            _ => TokenType::Identifier(upper),
         };
 
         self.add_token(token_type)

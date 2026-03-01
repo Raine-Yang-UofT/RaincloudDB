@@ -1,6 +1,7 @@
 mod common;
 
 use paste::paste;
+use raincloud_db::interpreter::ExecResult;
 use raincloud_db::with_read_pages;
 use crate::common::{test_sql, setup_interpreter, assert_sql_success, assert_sql_failure};
 
@@ -18,7 +19,7 @@ fn test_create_table() {
     let table = catalog.get_table_schema("db1", "users")
         .expect("Table should exist in catalog");
 
-    assert_eq!(table.name, "users");
+    assert_eq!(table.name, "USERS");
     assert_eq!(table.columns.len(), 2);
     assert!(table.first_page_id > 0);
 }
@@ -48,6 +49,17 @@ fn test_insert_and_page_overflow() {
         assert_sql_success(&format!("INSERT INTO logs VALUES ({i}, \"aaaaaaaaaa\");"), &mut interpreter);
     }
 
+    // check all records are present
+    let result =
+        test_sql("SELECT ID, DATA FROM LOGS WHERE data=\"aaaaaaaaaa\";", &mut interpreter);
+    if let ExecResult::QueryResult(res) = result[0].as_ref().unwrap() {
+        for (i, record) in res.iter().enumerate() {
+            assert_eq!(*record, vec![i.to_string().as_str(), "'aaaaaaaaaa'"]);
+        }
+    } else {
+        panic!("Expected QueryResult return type");
+    }
+
     // the table schema should still point to the same first_page_id,
     // but the storage engine should now have multiple pages linked.
     let ctx = interpreter.context.read().unwrap();
@@ -55,7 +67,7 @@ fn test_insert_and_page_overflow() {
     let first_id = table.first_page_id;
 
     // check if a second page was linked
-    let storage = ctx.storage_engines.get("db1").unwrap();
+    let storage = ctx.storage_engines.get("DB1").unwrap();
     with_read_pages!(storage.buffer_pool, [(first_id, page)], {
         assert!(page.get_next_id() > 0, "A second page should have been allocated and linked");
     });
@@ -74,6 +86,14 @@ fn test_insert_multiple_records() {
         (100, \";;;;;;;;;;\", 100, \"+=*;.\"),\
         (1000000000, \"$$$$$$$$$$\", 1000000000, \"*****\");"), &mut interpreter);
     }
+
+    // validate total row count
+    let result = test_sql("SELECT ID, DATA1, DATA2, DATA3 FROM LOGS;", &mut interpreter);
+    let rows = match result[0].as_ref().unwrap() {
+        ExecResult::QueryResult(res) => res,
+        _ => panic!("Expected QueryResult"),
+    };
+    assert_eq!(rows.len(), 4000);
 }
 
 #[test]
@@ -97,6 +117,15 @@ fn test_update_table_single_row() {
     assert_sql_success("CREATE TABLE temp (id INT, name CHAR(5));", &mut interpreter);
     assert_sql_success("INSERT INTO temp VALUES (0, \"foo  \");", &mut interpreter);
     assert_sql_success("UPDATE temp SET name = \"bar  \" WHERE id = 0;", &mut interpreter);
+
+    // check the row is updated
+    let result = test_sql("SELECT ID, NAME FROM TEMP;", &mut interpreter);
+    let rows = match result[0].as_ref().unwrap() {
+        ExecResult::QueryResult(res) => res,
+        _ => panic!("Expected QueryResult"),
+    };
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0], vec!["0", "'bar  '"]);
 }
 
 #[test]
@@ -107,6 +136,15 @@ fn test_update_no_matching_rows() {
     assert_sql_success("CREATE TABLE temp (id INT, name CHAR(5));", &mut interpreter);
     assert_sql_success("INSERT INTO temp VALUES (0, \"foo  \");", &mut interpreter);
     assert_sql_success("UPDATE temp SET name = \"bar  \" WHERE id = 999;", &mut interpreter);
+
+    // check no update happens
+    let result = test_sql("SELECT ID, NAME FROM TEMP;", &mut interpreter);
+    let rows = match result[0].as_ref().unwrap() {
+        ExecResult::QueryResult(res) => res,
+        _ => panic!("Expected QueryResult"),
+    };
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0], vec!["0", "'foo  '"]);
 }
 
 #[test]
@@ -118,6 +156,16 @@ fn test_update_all_rows() {
     assert_sql_success("INSERT INTO temp VALUES (0, \"foo  \");", &mut interpreter);
     assert_sql_success("INSERT INTO temp VALUES (1, \"baz  \");", &mut interpreter);
     assert_sql_success("UPDATE temp SET name = \"bar  \";", &mut interpreter);
+
+    // check the rows are updated
+    let result = test_sql("SELECT ID, NAME FROM TEMP;", &mut interpreter);
+    let rows = match result[0].as_ref().unwrap() {
+        ExecResult::QueryResult(res) => res,
+        _ => panic!("Expected QueryResult"),
+    };
+    assert_eq!(rows.len(), 2);
+    assert_eq!(rows[0], vec!["0", "'bar  '"]);
+    assert_eq!(rows[1], vec!["1", "'bar  '"]);
 }
 
 #[test]
@@ -128,6 +176,15 @@ fn test_update_multiple_assignments() {
     assert_sql_success("CREATE TABLE temp (id INT, name CHAR(5));", &mut interpreter);
     assert_sql_success("INSERT INTO temp VALUES (0, \"foo  \");", &mut interpreter);
     assert_sql_success("UPDATE temp SET id = 10, name = \"bar  \" WHERE id = 0;", &mut interpreter);
+
+    // check the rows are updated
+    let result = test_sql("SELECT ID, NAME FROM TEMP;", &mut interpreter);
+    let rows = match result[0].as_ref().unwrap() {
+        ExecResult::QueryResult(res) => res,
+        _ => panic!("Expected QueryResult"),
+    };
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0], vec!["10", "'bar  '"]);
 }
 
 // TODO: add support for literal = literal in parser

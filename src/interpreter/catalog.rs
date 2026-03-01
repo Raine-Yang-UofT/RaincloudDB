@@ -78,11 +78,13 @@ impl Catalog {
     }
 
     pub fn add_database(&mut self, name: String) {
+        let name = name.to_uppercase();
         self.data.databases.entry(name).or_insert_with(DatabaseSchema::default);
         self.save_catalog().expect("Failure to update catalog during CREATE DATABASE");
     }
 
     pub fn remove_database(&mut self, name: &str) {
+        let name = &name.to_uppercase();
         self.data.databases.remove(name);
         self.save_catalog().expect("Failed to update catalog during DROP DATABASE");
     }
@@ -92,6 +94,8 @@ impl Catalog {
     }
 
     pub fn has_table(&self, db: &str, table: &str) -> bool {
+        let db = &db.to_uppercase();
+        let table = &table.to_uppercase();
         self.data.databases
             .get(db)
             .map(|schema| schema.tables.contains_key(table))
@@ -99,6 +103,7 @@ impl Catalog {
     }
 
     pub fn add_table(&mut self, db: &str, table_schema: TableSchema) -> Result<(), String> {
+        let db = &db.to_uppercase();
         let database = self.data.databases
             .get_mut(db)
             .ok_or_else(|| format!("Database '{}' does not exist", db))?;
@@ -113,6 +118,8 @@ impl Catalog {
     }
 
     pub fn remove_table(&mut self, db: &str, table: &str) -> Result<(), String> {
+        let db = &db.to_uppercase();
+        let table = &table.to_uppercase();
         let database = self.data.databases
             .get_mut(db)
             .ok_or_else(|| format!("Database '{}' does not exist", db))?;
@@ -123,6 +130,8 @@ impl Catalog {
     }
 
     pub fn get_table_schema(&self, db: &str, table: &str) -> Option<&TableSchema> {
+        let db = &db.to_uppercase();
+        let table = &table.to_uppercase();
         self.data.databases.get(db)?.tables.get(table)
     }
 }

@@ -26,7 +26,7 @@ fn test_create_database() {
         vec![
             TokenType::Create,
             TokenType::Database,
-            TokenType::Identifier("test_db".to_string()),
+            TokenType::Identifier("TEST_DB".to_string()),
             TokenType::Semicolon,
             TokenType::Eof,
         ]
@@ -42,7 +42,7 @@ fn test_connect_database() {
         vec![
             TokenType::Connect,
             TokenType::To,
-            TokenType::Identifier("test_db".to_string()),
+            TokenType::Identifier("TEST_DB".to_string()),
             TokenType::Semicolon,
             TokenType::Disconnect,
             TokenType::Semicolon,
@@ -67,12 +67,12 @@ fn test_create_table() {
         vec![
             TokenType::Create,
             TokenType::Table,
-            TokenType::Identifier("users".into()),
+            TokenType::Identifier("USERS".into()),
             TokenType::LParen,
-            TokenType::Identifier("id".into()),
+            TokenType::Identifier("ID".into()),
             TokenType::Int,
             TokenType::Comma,
-            TokenType::Identifier("name".into()),
+            TokenType::Identifier("NAME".into()),
             TokenType::Char,
             TokenType::LParen,
             TokenType::IntLiteral(10),
@@ -87,7 +87,7 @@ fn test_create_table() {
 #[test]
 fn test_insert() {
     let tokens = collect_tokens(
-        "insert into users VALUES (1, 'Alice');"
+        "insert into Users VALUES (1, 'Alice');"
     );
 
     assert_eq!(
@@ -95,7 +95,7 @@ fn test_insert() {
         vec![
             TokenType::Insert,
             TokenType::Into,
-            TokenType::Identifier("users".into()),
+            TokenType::Identifier("USERS".into()),
             TokenType::Values,
             TokenType::LParen,
             TokenType::IntLiteral(1),
@@ -118,11 +118,11 @@ fn test_select_where() {
         tokens,
         vec![
             TokenType::Select,
-            TokenType::Identifier("name".into()),
+            TokenType::Identifier("NAME".into()),
             TokenType::From,
-            TokenType::Identifier("users".into()),
+            TokenType::Identifier("USERS".into()),
             TokenType::Where,
-            TokenType::Identifier("id".into()),
+            TokenType::Identifier("ID".into()),
             TokenType::Equal,
             TokenType::IntLiteral(1),
             TokenType::Semicolon,
@@ -141,9 +141,9 @@ fn test_comments_and_whitespace() {
         tokens,
         vec![
             TokenType::Select,
-            TokenType::Identifier("id".into()),
+            TokenType::Identifier("ID".into()),
             TokenType::From,
-            TokenType::Identifier("users".into()),
+            TokenType::Identifier("USERS".into()),
             TokenType::Semicolon,
             TokenType::Eof,
         ]
