@@ -1,12 +1,13 @@
 mod common;
 
+use raincloud_db::interpreter::ExecResult;
 use raincloud_db::types::{DATA_FILE, HEADER_FILE};
-use crate::common::{setup_interpreter, test_sql};
+use crate::common::{setup_interpreter, test_sql, assert_sql_success, assert_sql_failure};
 
 #[test]
 fn test_create_database() {
     let mut interpreter = setup_interpreter();
-    assert!(test_sql("CREATE DATABASE db1;", &mut interpreter).is_ok());
+    assert_sql_success("CREATE DATABASE db1;", &mut interpreter);
 
     let ctx = interpreter.context.read().unwrap();
     let db_path = ctx.dbms_root_dir.join("db1");
@@ -22,14 +23,14 @@ fn test_create_database() {
 #[test]
 fn test_connect_disconnect_database() {
     let mut interpreter = setup_interpreter();
-    assert!(test_sql("CREATE DATABASE db1; CONNECT TO db1;", &mut interpreter).is_ok());
+    assert_sql_success("CREATE DATABASE db1; CONNECT TO db1;", &mut interpreter);
     
     {
         let ctx = interpreter.context.read().unwrap();
         assert_eq!(ctx.current_db.as_deref(), Some("db1"));
     }
 
-    assert!(test_sql("DISCONNECT;", &mut interpreter).is_ok());
+    assert_sql_success("DISCONNECT;", &mut interpreter);
     {
         let ctx = interpreter.context.read().unwrap();
         assert!(ctx.current_db.is_none());
@@ -39,7 +40,7 @@ fn test_connect_disconnect_database() {
 #[test]
 fn test_drop_database() {
     let mut interpreter = setup_interpreter();
-    assert!(test_sql("CREATE DATABASE db1; CONNECT TO db1;", &mut interpreter).is_ok());
+    assert_sql_success("CREATE DATABASE db1; CONNECT TO db1;", &mut interpreter);
     {
         let ctx = interpreter.context.read().unwrap();
         assert!(ctx.dbms_root_dir.join("db1").exists());
@@ -47,10 +48,10 @@ fn test_drop_database() {
     }
 
     // there is active connection to database, cannot drop
-    assert!(test_sql("DROP DATABASE db1;", &mut interpreter).is_err());
+    assert_sql_failure("DROP DATABASE db1;", &mut interpreter);
 
     // check database directory is removed and database is removed from catalog
-    assert!(test_sql("DISCONNECT; DROP DATABASE db1;", &mut interpreter).is_ok());
+    assert_sql_success("DISCONNECT; DROP DATABASE db1;", &mut interpreter);
     let ctx = interpreter.context.read().unwrap();
     assert!(!ctx.dbms_root_dir.join("db1").exists());
     assert!(!ctx.catalog.list_databases().contains(&"db1".to_string()));
@@ -60,5 +61,5 @@ fn test_drop_database() {
 #[test]
 fn test_drop_nonexistent_database() {
     let mut interpreter = setup_interpreter();
-   assert!(test_sql("DROP DATABASE undefined;", &mut interpreter).is_err());
+   assert_sql_failure("DROP DATABASE undefined;", &mut interpreter);
 }
