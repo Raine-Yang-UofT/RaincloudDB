@@ -132,6 +132,241 @@ fn test_select_where() {
 }
 
 #[test]
+fn test_comparison_operators() {
+    let tokens = collect_tokens(
+        "SELECT * FROM users WHERE age >= 18 AND age <= 65 OR age > 100 OR age < 0 OR age = 21;"
+    );
+
+    assert_eq!(
+        tokens,
+        vec![
+            TokenType::Select,
+            TokenType::Star,
+            TokenType::From,
+            TokenType::Identifier("USERS".into()),
+            TokenType::Where,
+            TokenType::Identifier("AGE".into()),
+            TokenType::GEqual,        // >=
+            TokenType::IntLiteral(18),
+            TokenType::And,
+            TokenType::Identifier("AGE".into()),
+            TokenType::LEqual,         // <=
+            TokenType::IntLiteral(65),
+            TokenType::Or,
+            TokenType::Identifier("AGE".into()),
+            TokenType::Greater,        // >
+            TokenType::IntLiteral(100),
+            TokenType::Or,
+            TokenType::Identifier("AGE".into()),
+            TokenType::Less,           // <
+            TokenType::IntLiteral(0),
+            TokenType::Or,
+            TokenType::Identifier("AGE".into()),
+            TokenType::Equal,           // =
+            TokenType::IntLiteral(21),
+            TokenType::Semicolon,
+            TokenType::Eof,
+        ]
+    );
+}
+
+#[test]
+fn test_arithmetic_operators() {
+    let tokens = collect_tokens(
+        "SELECT price * quantity + tax - discount / 2 FROM orders;"
+    );
+
+    assert_eq!(
+        tokens,
+        vec![
+            TokenType::Select,
+            TokenType::Identifier("PRICE".into()),
+            TokenType::Star,              // *
+            TokenType::Identifier("QUANTITY".into()),
+            TokenType::Plus,               // +
+            TokenType::Identifier("TAX".into()),
+            TokenType::Minus,               // -
+            TokenType::Identifier("DISCOUNT".into()),
+            TokenType::Slash,               // /
+            TokenType::IntLiteral(2),
+            TokenType::From,
+            TokenType::Identifier("ORDERS".into()),
+            TokenType::Semicolon,
+            TokenType::Eof,
+        ]
+    );
+}
+
+#[test]
+fn test_logical_operators() {
+    let tokens = collect_tokens(
+        "SELECT * FROM products WHERE NOT in_stock OR (category = 'Electronics' AND price < 1000);"
+    );
+
+    assert_eq!(
+        tokens,
+        vec![
+            TokenType::Select,
+            TokenType::Star,
+            TokenType::From,
+            TokenType::Identifier("PRODUCTS".into()),
+            TokenType::Where,
+            TokenType::Not,                  // NOT
+            TokenType::Identifier("IN_STOCK".into()),
+            TokenType::Or,                    // OR
+            TokenType::LParen,
+            TokenType::Identifier("CATEGORY".into()),
+            TokenType::Equal,
+            TokenType::StringLiteral("Electronics".into()),
+            TokenType::And,                   // AND
+            TokenType::Identifier("PRICE".into()),
+            TokenType::Less,
+            TokenType::IntLiteral(1000),
+            TokenType::RParen,
+            TokenType::Semicolon,
+            TokenType::Eof,
+        ]
+    );
+}
+
+#[test]
+fn test_complex_boolean_expression() {
+    let tokens = collect_tokens(
+        "SELECT * FROM employees WHERE (salary >= 50000 AND department = 'IT') OR (salary < 30000 AND NOT manager);"
+    );
+
+    assert_eq!(
+        tokens,
+        vec![
+            TokenType::Select,
+            TokenType::Star,
+            TokenType::From,
+            TokenType::Identifier("EMPLOYEES".into()),
+            TokenType::Where,
+            TokenType::LParen,
+            TokenType::Identifier("SALARY".into()),
+            TokenType::GEqual,
+            TokenType::IntLiteral(50000),
+            TokenType::And,
+            TokenType::Identifier("DEPARTMENT".into()),
+            TokenType::Equal,
+            TokenType::StringLiteral("IT".into()),
+            TokenType::RParen,
+            TokenType::Or,
+            TokenType::LParen,
+            TokenType::Identifier("SALARY".into()),
+            TokenType::Less,
+            TokenType::IntLiteral(30000),
+            TokenType::And,
+            TokenType::Not,
+            TokenType::Identifier("MANAGER".into()),
+            TokenType::RParen,
+            TokenType::Semicolon,
+            TokenType::Eof,
+        ]
+    );
+}
+
+#[test]
+fn test_mixed_arithmetic_and_comparison() {
+    let tokens = collect_tokens(
+        "SELECT * FROM items WHERE price * quantity >= total + tax - discount;"
+    );
+
+    assert_eq!(
+        tokens,
+        vec![
+            TokenType::Select,
+            TokenType::Star,
+            TokenType::From,
+            TokenType::Identifier("ITEMS".into()),
+            TokenType::Where,
+            TokenType::Identifier("PRICE".into()),
+            TokenType::Star,                    // *
+            TokenType::Identifier("QUANTITY".into()),
+            TokenType::GEqual,                   // >=
+            TokenType::Identifier("TOTAL".into()),
+            TokenType::Plus,                      // +
+            TokenType::Identifier("TAX".into()),
+            TokenType::Minus,                      // -
+            TokenType::Identifier("DISCOUNT".into()),
+            TokenType::Semicolon,
+            TokenType::Eof,
+        ]
+    );
+}
+
+#[test]
+fn test_chained_comparisons() {
+    let tokens = collect_tokens(
+        "SELECT * FROM products WHERE 10 < price AND price <= 100;"
+    );
+
+    assert_eq!(
+        tokens,
+        vec![
+            TokenType::Select,
+            TokenType::Star,
+            TokenType::From,
+            TokenType::Identifier("PRODUCTS".into()),
+            TokenType::Where,
+            TokenType::IntLiteral(10),
+            TokenType::Less,                       // <
+            TokenType::Identifier("PRICE".into()),
+            TokenType::And,
+            TokenType::Identifier("PRICE".into()),
+            TokenType::LEqual,                      // <=
+            TokenType::IntLiteral(100),
+            TokenType::Semicolon,
+            TokenType::Eof,
+        ]
+    );
+}
+
+#[test]
+fn test_negation_and_arithmetic() {
+    let tokens = collect_tokens(
+        "SELECT * FROM transactions WHERE NOT (amount * -1 > 0);"
+    );
+
+    assert_eq!(
+        tokens,
+        vec![
+            TokenType::Select,
+            TokenType::Star,
+            TokenType::From,
+            TokenType::Identifier("TRANSACTIONS".into()),
+            TokenType::Where,
+            TokenType::Not,
+            TokenType::LParen,
+            TokenType::Identifier("AMOUNT".into()),
+            TokenType::Star,                         // *
+            TokenType::Minus,                          // - (unary minus becomes number -1 in scanner)
+            TokenType::IntLiteral(1),
+            TokenType::Greater,                         // >
+            TokenType::IntLiteral(0),
+            TokenType::RParen,
+            TokenType::Semicolon,
+            TokenType::Eof,
+        ]
+    );
+}
+
+#[test]
+fn test_keywords_case_insensitivity() {
+    let tokens = collect_tokens(
+        "SELECT * FROM users WHERE age >= 18 AND name = 'John' OR NOT active;"
+    );
+
+    // Test lowercase version
+    let tokens_lower = collect_tokens(
+        "select * from users where age >= 18 and name = 'John' or not active;"
+    );
+
+    assert_eq!(tokens, tokens_lower);
+}
+
+#[test]
 fn test_comments_and_whitespace() {
     let tokens = collect_tokens(
         "-- comment\nsELecT id frOM users; -- trailing"

@@ -6,6 +6,14 @@ pub enum TokenType {
     Comma,      // ,
     Semicolon,  // ;
     Equal,      // =
+    Greater,    // >
+    GEqual,     // >=
+    Less,       // <
+    LEqual,     // <=
+    Star,       // *
+    Slash,      // /
+    Plus,       // +
+    Minus,      // -
 
     // data types
     Int,
@@ -20,7 +28,7 @@ pub enum TokenType {
     // keywords
     Create, Database, Drop, Table, Insert, Into,
     Values, Update, Set, Where, Select, From,
-    Connect, To, Disconnect,
+    Connect, To, Disconnect, And, Or, Not,
 
     // special
     Eof,

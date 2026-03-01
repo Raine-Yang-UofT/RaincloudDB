@@ -102,6 +102,9 @@ impl Scanner {
             "DISCONNECT" => TokenType::Disconnect,
             "TRUE" => TokenType::BoolLiteral(true),
             "FALSE" => TokenType::BoolLiteral(false),
+            "AND" => TokenType::And,
+            "NOT" => TokenType::Not,
+            "OR" => TokenType::Or,
             _ => TokenType::Identifier(upper),
         };
 
@@ -155,6 +158,24 @@ impl Scanner {
             ',' => self.add_token(TokenType::Comma),
             ';' => self.add_token(TokenType::Semicolon),
             '=' => self.add_token(TokenType::Equal),
+            '>' => if self.peek() == '=' {
+                self.advance();
+                self.add_token(TokenType::GEqual)
+
+            } else {
+                self.add_token(TokenType::Greater)
+            },
+            '<' => if self.peek() == '=' {
+                self.advance();
+                self.add_token(TokenType::LEqual)
+
+            } else {
+                self.add_token(TokenType::Less)
+            },
+            '+' => self.add_token(TokenType::Plus),
+            '-' => self.add_token(TokenType::Minus),
+            '*' => self.add_token(TokenType::Star),
+            '/' => self.add_token(TokenType::Slash),
             '"' | '\'' => self.string(c),
             '0'..='9' => self.number(),
             'A'..='Z' | 'a'..='z' | '_' =>self.identifier(),
