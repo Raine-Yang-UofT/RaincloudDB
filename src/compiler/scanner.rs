@@ -161,16 +161,18 @@ impl Scanner {
             '>' => if self.peek() == '=' {
                 self.advance();
                 self.add_token(TokenType::GEqual)
-
             } else {
                 self.add_token(TokenType::Greater)
             },
             '<' => if self.peek() == '=' {
                 self.advance();
                 self.add_token(TokenType::LEqual)
-
             } else {
                 self.add_token(TokenType::Less)
+            },
+            '!' if self.peek() == '=' => {
+                self.advance();
+                self.add_token(TokenType::NotEqual)
             },
             '+' => self.add_token(TokenType::Plus),
             '-' => self.add_token(TokenType::Minus),

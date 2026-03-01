@@ -10,6 +10,7 @@ pub enum TokenType {
     GEqual,     // >=
     Less,       // <
     LEqual,     // <=
+    NotEqual,   // !=
     Star,       // *
     Slash,      // /
     Plus,       // +

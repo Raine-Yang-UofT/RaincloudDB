@@ -134,7 +134,7 @@ fn test_select_where() {
 #[test]
 fn test_comparison_operators() {
     let tokens = collect_tokens(
-        "SELECT * FROM users WHERE age >= 18 AND age <= 65 OR age > 100 OR age < 0 OR age = 21;"
+        "SELECT * FROM users WHERE age >= 18 AND age <= 65 OR age > 100 OR age < 0 OR age != 21;"
     );
 
     assert_eq!(
@@ -162,7 +162,7 @@ fn test_comparison_operators() {
             TokenType::IntLiteral(0),
             TokenType::Or,
             TokenType::Identifier("AGE".into()),
-            TokenType::Equal,           // =
+            TokenType::NotEqual,           // !=
             TokenType::IntLiteral(21),
             TokenType::Semicolon,
             TokenType::Eof,
@@ -232,7 +232,7 @@ fn test_logical_operators() {
 #[test]
 fn test_complex_boolean_expression() {
     let tokens = collect_tokens(
-        "SELECT * FROM employees WHERE (salary >= 50000 AND department = 'IT') OR (salary < 30000 AND NOT manager);"
+        "SELECT * FROM employees WHERE (salary >= 50000 AND department != 'IT') OR (salary < 30000 AND NOT manager);"
     );
 
     assert_eq!(
@@ -249,7 +249,7 @@ fn test_complex_boolean_expression() {
             TokenType::IntLiteral(50000),
             TokenType::And,
             TokenType::Identifier("DEPARTMENT".into()),
-            TokenType::Equal,
+            TokenType::NotEqual,
             TokenType::StringLiteral("IT".into()),
             TokenType::RParen,
             TokenType::Or,
