@@ -2,20 +2,32 @@ use crate::compiler::ast::{ColumnDef, ExprType, Literal, RowDef};
 use crate::types::ColumnId;
 
 #[derive(Debug, Clone, PartialEq)]
-pub enum BoundExpr {
-    Equals(ExprType, Box<BoundExpr>, Box<BoundExpr>),
-    Column(ExprType, ColumnId),
-    Literal(ExprType, Literal),
+pub struct BoundExprNode {
+    pub expr_type: ExprType,
+    pub expr: BoundExpr,
 }
 
-impl BoundExpr {
-    pub fn get_type(&self) -> &ExprType {
-        match self {
-            BoundExpr::Equals(expr_type, _, _) => expr_type,
-            BoundExpr::Column(expr_type, _) => expr_type,
-            BoundExpr::Literal(expr_type, _) => expr_type,
-        }
-    }
+#[derive(Debug, Clone, PartialEq)]
+pub enum BoundExpr {
+    // binary
+    Equals(Box<BoundExpr>, Box<BoundExpr>),
+    Gt(Box<BoundExpr>, Box<BoundExpr>),
+    Gte(Box<BoundExpr>, Box<BoundExpr>),
+    Lt(Box<BoundExpr>, Box<BoundExpr>),
+    Lte(Box<BoundExpr>, Box<BoundExpr>),
+    NotEquals(Box<BoundExpr>, Box<BoundExpr>),
+    And(Box<BoundExpr>, Box<BoundExpr>),
+    Or(Box<BoundExpr>, Box<BoundExpr>),
+    Add(Box<BoundExpr>, Box<BoundExpr>),
+    Sub(Box<BoundExpr>, Box<BoundExpr>),
+    Mul(Box<BoundExpr>, Box<BoundExpr>),
+    Div(Box<BoundExpr>, Box<BoundExpr>),
+    // unary
+    Minus(Box<BoundExpr>),
+    Not(Box<BoundExpr>),
+    // primary
+    Column(ColumnId),
+    Literal(Literal),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -40,13 +52,13 @@ pub enum BoundStmt {
     Update {
         table: String,
         assignments: Vec<BoundAssignment>,
-        selection: Option<BoundExpr>,
+        selection: Option<BoundExprNode>,
     },
 
     Select {
         table: String,
         columns: Vec<ColumnId>,
-        selection: Option<BoundExpr>,
+        selection: Option<BoundExprNode>,
     },
 }
 

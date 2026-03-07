@@ -1,6 +1,6 @@
 use paste::paste;
 use crate::compiler::ast::{Literal, RowDef};
-use crate::compiler::bounded_ast::BoundExpr;
+use crate::compiler::bounded_ast::BoundExprNode;
 use crate::interpreter::ExecResult;
 use crate::interpreter::executor::{Executor, ExprContext};
 use crate::types::{ColumnId, DbResult};
@@ -12,7 +12,7 @@ impl Executor {
         &self,
         table: &str,
         columns: &Vec<ColumnId>,
-        selection: &Option<BoundExpr>
+        selection: &Option<BoundExprNode>
     ) -> DbResult<ExecResult> {
 
         let ctx = self.context.read().unwrap();
@@ -36,7 +36,7 @@ impl Executor {
                     // no condition means updating every row
                     if let Some(condition) = selection {
                         if let Literal::Bool(false) = self.execute_expression(
-                            condition,
+                            &condition.expr,
                             &ExprContext { row: &row }
                         )? {
                             continue;

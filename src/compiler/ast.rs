@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::fmt;
 use serde::{Deserialize, Serialize};
 
@@ -50,7 +51,15 @@ pub enum DataType {
 /// Expression
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expression {
-    Equals(Box<Expression>, Box<Expression>),
+    Unary {
+        op: UnaryOp,
+        expr: Box<Expression>,
+    },
+    Binary {
+        lhs: Box<Expression>,
+        op: BinaryOp,
+        rhs: Box<Expression>,
+    },
     Identifier(String),
     Literal(Literal),
 }
@@ -63,12 +72,49 @@ pub enum ExprType {
     Bool,
 }
 
-/// Literal
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UnaryOp {
+    Not,
+    Neg,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BinaryOp {
+    Or, And, Eq, NotEq,
+    Gt, Gte, Lt, Lte,
+    Add, Sub, Mul, Div,
+}
+
+/// Literal
+#[derive(Debug, Clone)]
 pub enum Literal {
     Int(i32),
     String(String),
     Bool(bool),
+}
+
+impl PartialEq for Literal {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Literal::Int(a), Literal::Int(b)) => a == b,
+            (Literal::String(a), Literal::String(b)) => a == b,
+            (Literal::Bool(a), Literal::Bool(b)) => a == b,
+            _ => false,
+        }
+    }
+}
+
+impl Eq for Literal {}
+
+impl PartialOrd for Literal {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self, other) {
+            (Literal::Int(a), Literal::Int(b)) => a.partial_cmp(b),
+            (Literal::String(a), Literal::String(b)) => a.partial_cmp(b),
+            (Literal::Bool(a), Literal::Bool(b)) => a.partial_cmp(b),
+            _ => None, // different types are not comparable
+        }
+    }
 }
 
 impl fmt::Display for Literal {

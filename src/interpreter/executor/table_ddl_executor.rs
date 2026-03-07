@@ -6,7 +6,7 @@ use crate::interpreter::executor::{Executor, ExprContext};
 use crate::interpreter::catalog::TableSchema;
 use crate::types::{DbError, DbResult, NO_FLUSH};
 use crate::{with_create_pages, with_read_pages, with_write_pages};
-use crate::compiler::bounded_ast::{BoundAssignment, BoundExpr};
+use crate::compiler::bounded_ast::{BoundAssignment, BoundExprNode};
 use crate::interpreter::ExecResult;
 
 impl Executor {
@@ -104,7 +104,7 @@ impl Executor {
         &mut self, 
         table: &str, 
         assignments: &Vec<BoundAssignment>,
-        selection: &Option<BoundExpr>
+        selection: &Option<BoundExprNode>
     ) -> DbResult<ExecResult> {
 
         let ctx = self.context.read().unwrap();
@@ -131,7 +131,7 @@ impl Executor {
                     // no condition means updating every row
                     if let Some(condition) = selection {
                         if let Literal::Bool(false) = self.execute_expression(
-                            condition,
+                            &condition.expr,
                             &ExprContext { row: &row }
                         )? {
                             continue;

@@ -8,6 +8,7 @@ pub struct Parser {
     current: usize,
 }
 
+// parsing statements
 impl Parser {
 
     /// Creating parser from scanner result
@@ -204,7 +205,7 @@ impl Parser {
     }
 
     /**
-    select_stmt := SELECT identifier (,identifier)* FROM identifier (WHERE expression)?;
+    select_stmt := SELECT expression (,expression)* FROM identifier (WHERE expression)?;
     */
     fn parse_select(&mut self) -> DbResult<Statement> {
         self.consume(TokenType::Select)?;
@@ -227,7 +228,7 @@ impl Parser {
     }
 
     /**
-    assignment := identifier = literal
+    assignment := identifier = expression
     */
     fn parse_assignment(&mut self) -> DbResult<Assignment> {
         let column = self.consume_identifier()?;
@@ -237,20 +238,7 @@ impl Parser {
     }
 
     /**
-    expression :=
-    literal |
-    identifier |
-    (literal | identifier ) = (literal | identifier)
-     */
-    fn parse_expression(&mut self) -> DbResult<Expression> {
-        let left = Expression::Identifier(self.consume_identifier()?);
-        self.consume(TokenType::Equal)?;
-        let right = Expression::Literal(self.parse_literal()?);
-        Ok(Expression::Equals(Box::new(left), Box::new(right)))
-    }
-
-    /**
-    row := ( literal ( , literal )* )
+    row := ( expression ( , expression )* )
     */
     fn parse_value_row(&mut self) -> DbResult<RowDef> {
         self.consume(TokenType::LParen)?;
@@ -262,17 +250,6 @@ impl Parser {
 
         self.consume(TokenType::RParen)?;
         Ok(RowDef { record: row })
-    }
-
-    /// literal
-    fn parse_literal(&mut self) -> DbResult<Literal> {
-        let token = self.advance();
-        match token.token_type {
-            TokenType::IntLiteral(v) => Ok(Literal::Int(v)),
-            TokenType::StringLiteral(s) => Ok(Literal::String(s)),
-            TokenType::BoolLiteral(b) => Ok(Literal::Bool(b)),
-            t => Err(DbError::ParseError(format!("Expected literal, got {:?} at line {:?}", t, token.line))),
-        }
     }
 
     // helper functions
@@ -325,6 +302,217 @@ impl Parser {
             Ok(v)
         } else {
             Err(DbError::ParseError(format!("Expected integer literal, got {:?}", self.peek())))
+        }
+    }
+}
+
+/**
+Recursive descend parsing for expressions:
+
+Expression -> LogicalOr
+LogicalOr -> LogicalAnd ("OR" LogicalAnd)*
+LogicalAnd -> Equality ("AND" Equality)*
+Equality -> Comparison ( ("==" | "!=") Comparison)*
+Comparison -> Additive ( (">" | ">=" | "<" | "<=") Additive )*
+Additive -> Multiplicative ( ("+" | "-") Multiplicative )*
+Multiplicative -> Unary ( ("*" | "/") Unary )*
+Unary -> ("NOT" | "-") Unary | Primary
+Primary -> Literal | Identifier | "(" Expression ")"
+ */
+impl Parser {
+
+    /// Expression -> LogicalOr
+    pub fn parse_expression(&mut self) -> DbResult<Expression> {
+        self.parse_logical_or()
+    }
+
+    /// LogicalOr -> LogicalAnd ("OR" LogicalAnd)*
+    fn parse_logical_or(&mut self) -> DbResult<Expression> {
+        let mut expr = self.parse_logical_and()?;
+
+        while self.match_token(TokenType::Or) {
+            let right = self.parse_logical_and()?;
+            expr = Expression::Binary {
+                lhs: Box::new(expr),
+                op: BinaryOp::Or,
+                rhs: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+
+    /// LogicalAnd -> Equality ("AND" Equality)*
+    fn parse_logical_and(&mut self) -> DbResult<Expression> {
+        let mut expr = self.parse_equality()?;
+
+        while self.match_token(TokenType::And) {
+            let right = self.parse_equality()?;
+            expr = Expression::Binary {
+                lhs: Box::new(expr),
+                op: BinaryOp::And,
+                rhs: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+
+    /// Equality -> Comparison ( ("==" | "!=") Comparison)*
+    fn parse_equality(&mut self) -> DbResult<Expression> {
+        let mut expr = self.parse_comparison()?;
+
+        loop {
+            let op = match self.peek().token_type {
+                TokenType::Equal => BinaryOp::Eq,
+                TokenType::NotEqual => BinaryOp::NotEq,
+                _ => break,
+            };
+
+            self.advance();
+            let right = self.parse_comparison()?;
+
+            expr = Expression::Binary {
+                lhs: Box::new(expr),
+                op,
+                rhs: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+
+    /// Comparison -> Additive ( (">" | ">=" | "<" | "<=") Additive )*
+    fn parse_comparison(&mut self) -> DbResult<Expression> {
+        let mut expr = self.parse_additive()?;
+
+        loop {
+            let op = match self.peek().token_type {
+                TokenType::Greater => BinaryOp::Gt,
+                TokenType::GEqual => BinaryOp::Gte,
+                TokenType::Less => BinaryOp::Lt,
+                TokenType::LEqual => BinaryOp::Lte,
+                _ => break,
+            };
+
+            self.advance();
+            let right = self.parse_additive()?;
+
+            expr = Expression::Binary {
+                lhs: Box::new(expr),
+                op,
+                rhs: Box::new(right),
+            };
+        }
+
+        Ok(expr)
+    }
+
+    /// Addictive -> Multiplicative ( ("+" | "-") Multiplicative )*
+    fn parse_additive(&mut self) -> DbResult<Expression> {
+        let mut expr = self.parse_multiplicative()?;
+        loop {
+            let op = match self.peek().token_type {
+                TokenType::Plus => BinaryOp::Add,
+                TokenType::Minus => BinaryOp::Sub,
+                _ => break,
+            };
+
+            self.advance();
+            let rhs = self.parse_multiplicative()?;
+
+            expr = Expression::Binary {
+                lhs: Box::new(expr),
+                op,
+                rhs: Box::new(rhs),
+            };
+        }
+        Ok(expr)
+    }
+
+    /// Multiplicative -> Unary ( ("*" | "/") Unary )*
+    fn parse_multiplicative(&mut self) -> DbResult<Expression> {
+        let mut expr = self.parse_unary()?;
+        loop {
+            let op = match self.peek().token_type {
+                TokenType::Star => BinaryOp::Mul,
+                TokenType::Slash => BinaryOp::Div,
+                _ => break,
+            };
+
+            self.advance();
+            let rhs = self.parse_unary()?;
+
+            expr = Expression::Binary {
+                lhs: Box::new(expr),
+                op,
+                rhs: Box::new(rhs),
+            };
+        }
+        Ok(expr)
+    }
+
+    /// Unary -> ("NOT" | "-") Unary | Primary
+    fn parse_unary(&mut self) -> DbResult<Expression> {
+        match self.peek().token_type {
+            TokenType::Not => {
+                self.advance();
+                let expr = self.parse_unary()?;
+                Ok(Expression::Unary {
+                    op: UnaryOp::Not,
+                    expr: Box::new(expr),
+                })
+            }
+            TokenType::Minus => {
+                self.advance();
+                let expr = self.parse_unary()?;
+                Ok(Expression::Unary {
+                    op: UnaryOp::Neg,
+                    expr: Box::new(expr),
+                })
+            }
+            _ => self.parse_primary(),
+        }
+    }
+
+    /// Primary -> Literal | Identifier | "(" Expression ")"
+    fn parse_primary(&mut self) -> DbResult<Expression> {
+        match &self.peek().token_type {
+            TokenType::IntLiteral(_)
+            | TokenType::StringLiteral(_)
+            | TokenType::BoolLiteral(_) => {
+                let lit = self.parse_literal()?;
+                Ok(Expression::Literal(lit))
+            }
+
+            TokenType::Identifier(name) => {
+                let name = name.clone();
+                self.advance();
+                Ok(Expression::Identifier(name))
+            }
+
+            TokenType::LParen => {
+                self.advance();
+                let expr = self.parse_expression()?;
+                self.consume(TokenType::RParen)?;
+                Ok(expr)
+            }
+
+            _ => Err(DbError::ParseError(format!(
+                "Unexpected token {:?} in expression",
+                self.peek()
+            ))),
+        }
+    }
+
+    /// literal = int | string | bool
+    fn parse_literal(&mut self) -> DbResult<Literal> {
+        let token = self.advance();
+        match token.token_type {
+            TokenType::IntLiteral(v) => Ok(Literal::Int(v)),
+            TokenType::StringLiteral(s) => Ok(Literal::String(s)),
+            TokenType::BoolLiteral(b) => Ok(Literal::Bool(b)),
+            t => Err(DbError::ParseError(format!("Expected literal, got {:?} at line {:?}", t, token.line))),
         }
     }
 }

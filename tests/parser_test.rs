@@ -155,9 +155,10 @@ fn test_update_with_where() {
             assert_eq!(assignments[0].column, "NAME");
             assert!(matches!(assignments[0].value, Literal::String(ref s) if s == "Bob"));
             match selection {
-                Some(Expression::Equals(l, r)) => {
-                    assert!(matches!(**l, Expression::Identifier(ref name) if name == "ID"));
-                    assert!(matches!(**r, Expression::Literal(Literal::Int(1))));
+                Some(Expression::Binary { lhs, op, rhs}) => {
+                    assert_eq!(*op, BinaryOp::Eq);
+                    assert!(matches!(**lhs, Expression::Identifier(ref name) if name == "ID"));
+                    assert!(matches!(**rhs, Expression::Literal(Literal::Int(1))));
                 }
                 _ => panic!("Expected equality expression"),
             }
@@ -176,9 +177,10 @@ fn test_select_with_where() {
             assert_eq!(columns, &vec!["NAME".to_string(), "AGE".to_string()]);
             assert_eq!(table, "USERS");
             match selection {
-                Some(Expression::Equals(l, r)) => {
-                    assert!(matches!(**l, Expression::Identifier(ref name) if name == "ID"));
-                    assert!(matches!(**r, Expression::Literal(Literal::Int(1))));
+                Some(Expression::Binary { lhs, op, rhs}) => {
+                    assert_eq!(*op, BinaryOp::Eq);
+                    assert!(matches!(**lhs, Expression::Identifier(ref name) if name == "ID"));
+                    assert!(matches!(**rhs, Expression::Literal(Literal::Int(1))));
                 }
                 _ => panic!("Expected WHERE id = 1"),
             }
@@ -207,9 +209,10 @@ fn test_update_multiple_assignments() {
             assert!(matches!(assignments[2].value, Literal::String(ref s) if s == "bob@example.com"));
 
             match selection {
-                Some(Expression::Equals(l, r)) => {
-                    assert!(matches!(**l, Expression::Identifier(ref name) if name == "ID"));
-                    assert!(matches!(**r, Expression::Literal(Literal::Int(1))));
+                Some(Expression::Binary { lhs, op, rhs}) => {
+                    assert_eq!(*op, BinaryOp::Eq);
+                    assert!(matches!(**lhs, Expression::Identifier(ref name) if name == "ID"));
+                    assert!(matches!(**rhs, Expression::Literal(Literal::Int(1))));
                 }
                 _ => panic!("Expected equality expression"),
             }
