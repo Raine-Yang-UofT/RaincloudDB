@@ -4,7 +4,7 @@ use raincloud_db::compiler::ast::*;
 
 fn parse_sql(sql: &str) -> Vec<Statement> {
     let mut scanner = Scanner::new(sql);
-    let mut parser = Parser::new(&mut scanner);
+    let mut parser = Parser::new(&mut scanner).unwrap();
     parser.parse().unwrap()
 }
 
@@ -249,6 +249,6 @@ fn test_multiple_statements() {
 fn test_parse_error_missing_semicolon() {
     let sql = "CREATE DATABASE testdb";
     let mut scanner = Scanner::new(sql);
-    let mut parser = Parser::new(&mut scanner);
+    let mut parser = Parser::new(&mut scanner).unwrap();
     parser.parse().unwrap_err();
 }

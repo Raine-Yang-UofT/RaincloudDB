@@ -12,7 +12,7 @@ pub fn setup_interpreter() -> Interpreter {
 
 pub fn test_sql(sql: &str, interpreter: &mut Interpreter) -> Vec<DbResult<ExecResult>> {
     let mut scanner = Scanner::new(sql);
-    let mut parser = Parser::new(&mut scanner);
+    let mut parser = Parser::new(&mut scanner).unwrap();
 
     let mut results = Vec::new();
     for stmt in parser.parse().unwrap() {

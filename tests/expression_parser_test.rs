@@ -6,7 +6,7 @@ use raincloud_db::compiler::scanner::Scanner;
 /// Adapt this if your parser API has a different method name.
 fn parse(src: &str) -> Expression {
     let mut scanner = Scanner::new(src);
-    let mut parser = Parser::new(&mut scanner);
+    let mut parser = Parser::new(&mut scanner).unwrap();
     parser.parse_expression().expect(&format!("failed to parse: {}", src))
 }
 

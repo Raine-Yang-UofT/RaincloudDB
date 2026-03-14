@@ -1,3 +1,4 @@
+use std::net::ToSocketAddrs;
 use crate::compiler::ast::{Literal, RowDef};
 use crate::compiler::bounded_ast::BoundExpr;
 use crate::interpreter::executor::{Executor, ExprContext};
@@ -34,13 +35,13 @@ impl Executor {
 
             // arithmetic
             BoundExpr::Add(l, r) =>
-                self.eval_arith(l, r, ctx, |a, b| a + b),
+                self.eval_arith(l, r, ctx, |a, b| a.checked_add(b)),
             BoundExpr::Sub(l, r) =>
-                self.eval_arith(l, r, ctx, |a, b| a - b),
+                self.eval_arith(l, r, ctx, |a, b| a.checked_sub(b)),
             BoundExpr::Mul(l, r) =>
-                self.eval_arith(l, r, ctx, |a, b| a * b),
+                self.eval_arith(l, r, ctx, |a, b| a.checked_mul(b)),
             BoundExpr::Div(l, r) =>
-                self.eval_arith(l, r, ctx, |a, b| a / b),
+                self.eval_arith(l, r, ctx, |a, b| a.checked_div(b)),
 
             // unary
             BoundExpr::Minus(e) =>
@@ -71,14 +72,16 @@ impl Executor {
     // arithmetic helper
     fn eval_arith<F>(&self, lhs: &BoundExpr, rhs: &BoundExpr, ctx: &ExprContext, func: F) -> DbResult<Literal>
     where
-        F: Fn(i32, i32) -> i32,
+        F: Fn(i32, i32) -> Option<i32>,
     {
         let lhs = self.execute_expression(lhs, ctx)?;
         let rhs = self.execute_expression(rhs, ctx)?;
 
         match (lhs, rhs) {
             (Literal::Int(a), Literal::Int(b)) =>
-                Ok(Literal::Int(func(a, b))),
+                func(a, b)
+                    .map(Literal::Int)
+                    .ok_or_else(|| DbError::ArithmeticError("Arithmetic error detected".to_string())),
             _ =>
                 Err(DbError::TypeMismatch("Arithmetic requires numerical operands".to_string())),
         }

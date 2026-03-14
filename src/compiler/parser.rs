@@ -12,17 +12,17 @@ pub struct Parser {
 impl Parser {
 
     /// Creating parser from scanner result
-    pub fn new(scanner: &mut Scanner) -> Self {
+    pub fn new(scanner: &mut Scanner) -> DbResult<Self> {
         let mut tokens = vec![];
         loop {
-            let token = scanner.next_token().unwrap();
+            let token = scanner.next_token()?;
             tokens.push(token.clone());
             if token.token_type == TokenType::Eof {
                 break;
             }
         }
 
-        Parser { tokens, current: 0 }
+        Ok(Parser { tokens, current: 0 })
     }
 
     /// Main parser method

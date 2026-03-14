@@ -32,6 +32,7 @@ pub enum DbError {
     ColumnMismatch(String),
     TypeMismatch(String),
     ExpressionNotFound(String),
+    ArithmeticError(String),
     InternalError(String),
 }
 

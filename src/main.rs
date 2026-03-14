@@ -8,19 +8,25 @@ use raincloud_db::types::DbError;
 
 fn execute_input(input: &str, interpreter: &mut Interpreter) {
     let mut scanner = Scanner::new(input);
-    let mut parser = Parser::new(&mut scanner);
+    let parser = Parser::new(&mut scanner);
 
-    match parser.parse() {
-        Ok(statements) => {
-            for stmt in statements {
-                match interpreter.execute(stmt) {
-                    Ok(result) => print_exec_result(result),
-                    Err(err) => print_db_error(err),
+    match parser {
+        Ok(mut p) => {
+            match p.parse() {
+                Ok(statements) => {
+                    for stmt in statements {
+                        match interpreter.execute(stmt) {
+                            Ok(result) => print_exec_result(result),
+                            Err(err) => print_db_error(err),
+                        }
+                    }
                 }
+                Err(err) => print_db_error(err),
             }
-        }
+        },
         Err(err) => print_db_error(err),
     }
+
 }
 
 fn print_exec_result(result: ExecResult) {
