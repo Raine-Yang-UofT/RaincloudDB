@@ -174,18 +174,87 @@ fn test_select_with_where() {
 
     match &stmts[0] {
         Statement::Select { columns, table, selection } => {
-            assert_eq!(columns, &vec!["NAME".to_string(), "AGE".to_string()]);
+
             assert_eq!(table, "USERS");
+            assert_eq!(columns.len(), 2);
+
+            assert!(matches!(columns[0],Expression::Identifier(ref name) if name == "NAME"));
+            assert!(matches!(columns[1],Expression::Identifier(ref name) if name == "AGE"));
+
             match selection {
-                Some(Expression::Binary { lhs, op, rhs}) => {
+                Some(Expression::Binary { lhs, op, rhs }) => {
                     assert_eq!(*op, BinaryOp::Eq);
-                    assert!(matches!(**lhs, Expression::Identifier(ref name) if name == "ID"));
-                    assert!(matches!(**rhs, Expression::Literal(Literal::Int(1))));
+                    assert!(matches!(**lhs,Expression::Identifier(ref name) if name == "ID"));
+                    assert!(matches!(**rhs,Expression::Literal(Literal::Int(1))));
                 }
                 _ => panic!("Expected WHERE id = 1"),
             }
         }
         _ => panic!("Expected Select statement"),
+    }
+}
+
+#[test]
+fn test_select_arithmetic_projection() {
+    let sql = "SELECT age + 1 FROM users;";
+    let stmts = parse_sql(sql);
+
+    match &stmts[0] {
+        Statement::Select { columns, table, selection } => {
+
+            assert_eq!(table, "USERS");
+            assert!(selection.is_none());
+
+            match &columns[0] {
+                Expression::Binary { lhs, op, rhs } => {
+                    assert_eq!(*op, BinaryOp::Add);
+                    assert!(matches!(**lhs,Expression::Identifier(ref name) if name == "AGE"));
+                    assert!(matches!(**rhs,Expression::Literal(Literal::Int(1))));
+                }
+                _ => panic!("Expected AGE + 1"),
+            }
+        }
+        _ => panic!("Expected select"),
+    }
+}
+
+#[test]
+fn test_select_multiple_expressions() {
+    let sql = "SELECT age + 1, age * 2, name FROM users;";
+    let stmts = parse_sql(sql);
+
+    match &stmts[0] {
+        Statement::Select { columns, .. } => {
+            assert_eq!(columns.len(), 3);
+            assert!(matches!(columns[2],Expression::Identifier(ref n) if n == "NAME"));
+        }
+        _ => panic!(),
+    }
+}
+
+#[test]
+fn test_select_complex_expression() {
+    let sql = "
+        SELECT age * 2 + 1, -age
+        FROM users
+        WHERE (age + 5) > 10 OR NOT active;
+    ";
+
+    let stmts = parse_sql(sql);
+    match &stmts[0] {
+        Statement::Select { columns, selection, .. } => {
+            assert_eq!(columns.len(), 2);
+            assert!(matches!(columns[0], Expression::Binary { .. }));
+            assert!(matches!(columns[1], Expression::Unary { .. }));
+
+            match selection {
+                Some(Expression::Binary { op, .. }) => {
+                    assert_eq!(*op, BinaryOp::Or);
+                }
+                _ => panic!("Expected OR"),
+            }
+        }
+        _ => panic!(),
     }
 }
 

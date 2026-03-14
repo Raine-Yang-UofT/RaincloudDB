@@ -1,4 +1,3 @@
-use std::cmp::PartialEq;
 use crate::compiler::ast::{DataType, Literal, Expression, ExprType, UnaryOp, BinaryOp};
 use crate::compiler::bounded_ast::{BoundExpr, BoundExprNode};
 use crate::interpreter::analyzer::Analyzer;

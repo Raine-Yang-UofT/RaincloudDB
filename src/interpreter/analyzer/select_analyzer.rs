@@ -8,7 +8,7 @@ impl Analyzer {
     pub fn analyze_select(
         &mut self,
         table: &str,
-        column: &Vec<String>,
+        column: &Vec<Expression>,
         selection: &Option<Expression>
     ) -> DbResult<BoundStmt> {
         let ctx = self.context.read().unwrap();
@@ -19,12 +19,9 @@ impl Analyzer {
             .ok_or_else(|| DbError::TableNotFound(format!("Table '{}' does not exist", table)))?;
 
         // resolve column identifiers to column id
-        let mut column_ids = Vec::new();
+        let mut columns = Vec::new();
         for c in column {
-            let column_id = *schema.column_index
-                .get(c)
-                .ok_or_else(|| DbError::ColumnNotFound(format!("Column '{}' does not exist in {}", c, table)))?;
-            column_ids.push(column_id);
+            columns.push(self.analyze_expression(c, schema)?.expr);
         }
 
         // analyze condition expression
@@ -37,7 +34,7 @@ impl Analyzer {
 
         Ok(BoundStmt::Select {
             table: String::from(table),
-            columns: column_ids,
+            columns,
             selection: bound_selection
         })
     }

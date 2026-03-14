@@ -187,21 +187,20 @@ fn test_update_multiple_assignments() {
     assert_eq!(rows[0], vec!["10", "'bar  '"]);
 }
 
-// TODO: add support for literal = literal in parser
-// #[test]
-// fn test_update_with_constant_expression() {
-//     let mut interpreter = setup_interpreter();
-//
-//     assert_sql_success("CREATE DATABASE db1; CONNECT TO db1;", &mut interpreter).unwrap();
-//     assert_sql_success("CREATE TABLE temp (id INT, name CHAR(5));", &mut interpreter).unwrap();
-//     assert_sql_success("INSERT INTO temp VALUES (0, \"foo  \");", &mut interpreter).unwrap();
-//
-//     assert!(assert_sql_success(
-//         "UPDATE temp SET name = \"bar  \" WHERE 1 = 1;\
-//         UPDATE tem SET id = 6 WHERE 1 = 0;",
-//         &mut interpreter
-//     ).is_ok());
-// }
+#[test]
+fn test_update_with_constant_expression() {
+    let mut interpreter = setup_interpreter();
+
+    assert_sql_success("CREATE DATABASE db1; CONNECT TO db1;", &mut interpreter);
+    assert_sql_success("CREATE TABLE temp (id INT, name CHAR(5));", &mut interpreter);
+    assert_sql_success("INSERT INTO temp VALUES (0, \"foo  \");", &mut interpreter);
+
+    assert_sql_success(
+        "UPDATE temp SET name = \"bar  \" WHERE 1 = 1;\
+        UPDATE temp SET id = 6 WHERE 1 = 0;",
+        &mut interpreter
+    );
+}
 
 #[test]
 fn test_update_type_mismatch() {
@@ -222,16 +221,15 @@ fn test_update_invalid_column() {
     assert_sql_failure("UPDATE temp SET age = 10;", &mut interpreter);
 }
 
-// TODO: require parser refactoring for full expression support
-// #[test]
-// fn test_update_invalid_predicate_type() {
-//     let mut interpreter = setup_interpreter();
-//
-//     assert_sql_success("CREATE DATABASE db1; CONNECT TO db1;", &mut interpreter);
-//     assert_sql_success("CREATE TABLE temp (id INT, name CHAR(5));", &mut interpreter);
-//     assert_sql_success("INSERT INTO temp VALUES (0, \"foo  \");", &mut interpreter);
-//     assert_sql_failure("UPDATE temp SET name = \"bar  \" WHERE name;", &mut interpreter);
-// }
+#[test]
+fn test_update_invalid_predicate_type() {
+    let mut interpreter = setup_interpreter();
+
+    assert_sql_success("CREATE DATABASE db1; CONNECT TO db1;", &mut interpreter);
+    assert_sql_success("CREATE TABLE temp (id INT, name CHAR(5));", &mut interpreter);
+    assert_sql_success("INSERT INTO temp VALUES (0, \"foo  \");", &mut interpreter);
+    assert_sql_failure("UPDATE temp SET name = \"bar  \" WHERE name;", &mut interpreter);
+}
 
 #[test]
 fn test_table_operations_without_connection() {

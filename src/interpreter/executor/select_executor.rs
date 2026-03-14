@@ -1,9 +1,9 @@
 use paste::paste;
 use crate::compiler::ast::{Literal, RowDef};
-use crate::compiler::bounded_ast::BoundExprNode;
+use crate::compiler::bounded_ast::{BoundExpr, BoundExprNode};
 use crate::interpreter::ExecResult;
 use crate::interpreter::executor::{Executor, ExprContext};
-use crate::types::{ColumnId, DbResult};
+use crate::types::DbResult;
 use crate::with_read_pages;
 
 impl Executor {
@@ -11,7 +11,7 @@ impl Executor {
     pub fn select(
         &self,
         table: &str,
-        columns: &Vec<ColumnId>,
+        columns: &Vec<BoundExpr>,
         selection: &Option<BoundExprNode>
     ) -> DbResult<ExecResult> {
 
@@ -31,13 +31,14 @@ impl Executor {
                 for (_, record_bytes) in page.iter_record() {
                     let row = RowDef::deserialize(record_bytes, &schema.columns)
                         .expect("Error deserializing record");
+                    let expr_ctx = ExprContext { row: &row };
 
                     // skip the row only if the condition evaluates to false
                     // no condition means updating every row
                     if let Some(condition) = selection {
                         if let Literal::Bool(false) = self.execute_expression(
                             &condition.expr,
-                            &ExprContext { row: &row }
+                            &expr_ctx
                         )? {
                             continue;
                         }
@@ -45,7 +46,7 @@ impl Executor {
 
                     let mut projected = Vec::new();
                     for col in columns {
-                        projected.push(row.record[*col].clone().to_string());
+                        projected.push(self.execute_expression(col, &expr_ctx)?.to_string());
                     }
 
                     result.push(projected);

@@ -28,7 +28,7 @@ pub enum Statement {
     },
 
     Select {
-        columns: Vec<String>,
+        columns: Vec<Expression>,
         table: String,
         selection: Option<Expression>, // WHERE clause
     },

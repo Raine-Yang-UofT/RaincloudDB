@@ -57,7 +57,7 @@ pub enum BoundStmt {
 
     Select {
         table: String,
-        columns: Vec<ColumnId>,
+        columns: Vec<BoundExpr>,
         selection: Option<BoundExprNode>,
     },
 }

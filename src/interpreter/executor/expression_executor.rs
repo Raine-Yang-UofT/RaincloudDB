@@ -1,4 +1,3 @@
-use std::net::ToSocketAddrs;
 use crate::compiler::ast::{Literal, RowDef};
 use crate::compiler::bounded_ast::BoundExpr;
 use crate::interpreter::executor::{Executor, ExprContext};

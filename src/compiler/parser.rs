@@ -210,9 +210,9 @@ impl Parser {
     fn parse_select(&mut self) -> DbResult<Statement> {
         self.consume(TokenType::Select)?;
 
-        let mut columns = vec![self.consume_identifier()?];
+        let mut columns = vec![self.parse_expression()?];
         while self.match_token(TokenType::Comma) {
-            columns.push(self.consume_identifier()?);
+            columns.push(self.parse_expression()?);
         }
 
         self.consume(TokenType::From)?;

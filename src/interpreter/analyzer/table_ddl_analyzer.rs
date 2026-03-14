@@ -150,7 +150,7 @@ impl Analyzer {
                 }
             },
             (DataType::Char(len), _) => Err(DbError::TypeMismatch(format!("expected CHAR({})", len))),
-            _ => Err(DbError::TypeMismatch(format!("Unsupported data type at column {:?}", column).to_string())),
+            // _ => Err(DbError::TypeMismatch(format!("Unsupported data type at column {:?}", column).to_string())),
         }
     }
 }
