@@ -1,4 +1,4 @@
-use raincloud_db::compiler::ast::{Literal, ColumnDef, DataType, RowDef};
+use raincloud_db::compiler::ast::{Literal, ColumnDef, DataType, Record};
 
 #[test]
 fn row_def_serialization_int() {
@@ -7,12 +7,12 @@ fn row_def_serialization_int() {
         ColumnDef{ name: "b".to_string(), data_type: DataType::Int },
     ];
 
-    let row = RowDef {
+    let row = Record {
         record: vec![Literal::Int(1), Literal::Int(2)],
     };
 
     let bytes = row.serialize().unwrap();
-    let decoded = RowDef::deserialize(&bytes, &schema).unwrap();
+    let decoded = Record::deserialize(&bytes, &schema).unwrap();
 
     assert_eq!(row, decoded);
 }
@@ -24,7 +24,7 @@ fn row_def_serialization_char() {
         ColumnDef{ name: "b".to_string(), data_type: DataType::Char(3) },
     ];
 
-    let row = RowDef {
+    let row = Record {
         record: vec![
             Literal::String("ab\0\0".into()),
             Literal::String("xyz".into()),
@@ -32,7 +32,7 @@ fn row_def_serialization_char() {
     };
 
     let bytes = row.serialize().unwrap();
-    let decoded = RowDef::deserialize(&bytes, &schema).unwrap();
+    let decoded = Record::deserialize(&bytes, &schema).unwrap();
 
     assert_eq!(
         decoded.record,
@@ -51,7 +51,7 @@ fn row_def_serialization_mixed() {
         ColumnDef{ name: "c".to_string(), data_type: DataType::Int },
     ];
 
-    let row = RowDef {
+    let row = Record {
         record: vec![
             Literal::Int(10),
             Literal::String("hi\0\0\0".into()),
@@ -60,7 +60,7 @@ fn row_def_serialization_mixed() {
     };
 
     let bytes = row.serialize().unwrap();
-    let decoded = RowDef::deserialize(&bytes, &schema).unwrap();
+    let decoded = Record::deserialize(&bytes, &schema).unwrap();
 
     assert_eq!(decoded.record[0], Literal::Int(10));
     assert_eq!(decoded.record[1], Literal::String("hi".into()));

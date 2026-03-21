@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use crate::storage::page::page::{Page, PageError};
 use paste::paste;
-use crate::compiler::ast::{ColumnDef, Literal, RowDef};
+use crate::compiler::ast::{ColumnDef, Literal, Record};
 use crate::interpreter::executor::{Executor, ExprContext};
 use crate::interpreter::catalog::TableSchema;
 use crate::types::{DbError, DbResult, NO_FLUSH};
@@ -63,16 +63,24 @@ impl Executor {
         }
     }
 
-    pub fn insert_table(&mut self, table: &str, rows: &Vec<RowDef>) -> DbResult<ExecResult> {
+    pub fn insert_table(&mut self, table: &str, rows: &Vec<Vec<BoundExprNode>>) -> DbResult<ExecResult> {
         let ctx = self.context.read().unwrap();
         let database = ctx.current_db.clone().unwrap();
         let num_rows = rows.len();
+        let expr_ctx = ExprContext { row: None };
 
         // write records to pages
         let mut page_id = ctx.catalog.get_table_schema(&database, table).unwrap().first_page_id;
         let storage_engine = ctx.storage_engines.get(&database).unwrap();
         for record in rows {
-            let record_bytes = record.serialize().expect("Error serializing record");
+            let record_values = Record {
+                record: record.iter()
+                    .map(|e| {
+                        self.execute_expression(&e.expr, &expr_ctx)
+                    })
+                    .collect::<Result<Vec<Literal>, DbError>>()?,
+            };
+            let record_bytes = record_values.serialize().expect("Error serializing record");
             loop {
                 // attempt to insert to current page
                 with_write_pages!(storage_engine.buffer_pool, [(page_id, page)], NO_FLUSH, {
@@ -124,12 +132,12 @@ impl Executor {
                 next_id = page.get_next_id();
 
                 for (slot_id, record_bytes) in page.iter_record() {
-                    let mut row = RowDef::deserialize(record_bytes, &schema.columns)
+                    let mut row = Record::deserialize(record_bytes, &schema.columns)
                         .expect("Error deserializing record");
 
                     // skip the row only if the condition evaluates to false
                     // no condition means updating every row
-                    let expr_ctx = ExprContext { row: &row.clone() };
+                    let expr_ctx = ExprContext { row: Some(&row.clone()) };
                     if let Some(condition) = selection {
                         if let Literal::Bool(false) = self.execute_expression(
                             &condition.expr,

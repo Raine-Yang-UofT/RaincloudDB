@@ -1,4 +1,4 @@
-use crate::compiler::ast::{ColumnDef, ExprType, Literal, RowDef};
+use crate::compiler::ast::{ColumnDef, ExprType, Literal};
 use crate::types::ColumnId;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -46,7 +46,7 @@ pub enum BoundStmt {
 
     Insert {
         table: String,
-        rows: Vec<RowDef>,
+        rows: Vec<Vec<BoundExprNode>>,
     },
 
     Update {

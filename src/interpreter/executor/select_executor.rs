@@ -1,5 +1,5 @@
 use paste::paste;
-use crate::compiler::ast::{Literal, RowDef};
+use crate::compiler::ast::{Literal, Record};
 use crate::compiler::bounded_ast::{BoundExpr, BoundExprNode};
 use crate::interpreter::ExecResult;
 use crate::interpreter::executor::{Executor, ExprContext};
@@ -29,9 +29,9 @@ impl Executor {
             with_read_pages!(storage_engine.buffer_pool, [(page_id, page)], {
                 next_id = page.get_next_id();
                 for (_, record_bytes) in page.iter_record() {
-                    let row = RowDef::deserialize(record_bytes, &schema.columns)
+                    let row = Record::deserialize(record_bytes, &schema.columns)
                         .expect("Error deserializing record");
-                    let expr_ctx = ExprContext { row: &row };
+                    let expr_ctx = ExprContext { row: Some(&row) };
 
                     // skip the row only if the condition evaluates to false
                     // no condition means updating every row

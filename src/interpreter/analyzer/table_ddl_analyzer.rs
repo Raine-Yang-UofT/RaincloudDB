@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use crate::compiler::ast::{Assignment, ColumnDef, DataType, Expression, Literal, RowDef};
+use crate::compiler::ast::{Assignment, ColumnDef, Expression};
 use crate::compiler::bounded_ast::{BoundAssignment, BoundStmt};
 use crate::interpreter::analyzer::Analyzer;
 use crate::types::{ColumnId, DbError, DbResult};
@@ -40,7 +40,7 @@ impl Analyzer {
         Ok(BoundStmt::DropTable { name: String::from(name) })
     }
 
-    pub fn analyze_insert_table(&mut self, table: &str, rows: &Vec<RowDef>) -> DbResult<BoundStmt> {
+    pub fn analyze_insert_table(&mut self, table: &str, rows: &Vec<Vec<Expression>>) -> DbResult<BoundStmt> {
         let ctx = self.context.read().unwrap();
 
         // check the table exists in database
@@ -49,30 +49,36 @@ impl Analyzer {
             .ok_or_else(|| DbError::TableNotFound(format!("Table '{}' does not exist", table)))?;
 
         // check the rows match table schema
+        let mut bounded_rows = vec!();
         for (row_index, row) in rows.iter().enumerate() {
-            let record = &row.record;
             // check number of columns
-            if record.len() != schema.columns.len() {
+            if row.len() != schema.columns.len() {
                 return Err(DbError::ColumnMismatch(
                     format!("Row {} has {} values, but table '{}' expects {} columns",
-                            row_index + 1, record.len(), table, schema.columns.len()
+                            row_index + 1, row.len(), table, schema.columns.len()
                 )));
             }
 
             // check record data type
-            for (col_index, (literal, column)) in record.iter()
+            let mut bounded_row = vec!();
+            for (col_index, (expr, column)) in row.iter()
                 .zip(schema.columns.iter())
                 .enumerate() {
-                if let Err(err_msg) = self.validate_data_type(literal, column) {
+                let bound_expr = self.analyze_expression(expr, schema)?;
+                if column.data_type.check_type(&bound_expr.expr_type) {
+                    bounded_row.push(bound_expr);
+                } else {
                     return Err(DbError::TypeMismatch(
-                        format!("Type mismatch at Row {}, Column {} ('{}'): {:?}",
-                                row_index + 1, col_index + 1, column.name, err_msg
-                    )));
+                        format!("Expect type {:?}; Got {:?} at Row {}, Column {} ('{}')",
+                                column.data_type, bound_expr.expr_type, row_index + 1, col_index + 1, column.name
+                        )));
                 }
+
             }
+            bounded_rows.push(bounded_row);
         }
 
-        Ok(BoundStmt::Insert { table: String::from(table), rows: rows.clone() })
+        Ok(BoundStmt::Insert { table: String::from(table), rows: bounded_rows })
     }
 
     pub fn analyze_update_table(
@@ -134,27 +140,5 @@ impl Analyzer {
             assignments: bound_assignments,
             selection: bound_selection,
         })
-    }
-
-    fn validate_data_type(&self, literal: &Literal, column: &ColumnDef) -> DbResult<()> {
-        match (&column.data_type, literal) {
-            // validate INT type
-            (DataType::Int, Literal::Int(_)) => Ok(()),
-            (DataType::Int, _) => Err(DbError::TypeMismatch("expected INT".to_string())),
-            // validate CHAR type
-            (DataType::Char(expected_len), Literal::String(s)) => {
-                let actual_len = s.len() as u32;
-                if actual_len != *expected_len {
-                    Err(DbError::TypeMismatch(format!(
-                        "expected CHAR({}) but string is length {}",
-                        expected_len, actual_len
-                    )))
-                } else {
-                    Ok(())
-                }
-            },
-            (DataType::Char(len), _) => Err(DbError::TypeMismatch(format!("expected CHAR({})", len))),
-            // _ => Err(DbError::TypeMismatch(format!("Unsupported data type at column {:?}", column).to_string())),
-        }
     }
 }

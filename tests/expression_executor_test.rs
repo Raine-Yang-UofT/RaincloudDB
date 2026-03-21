@@ -1,6 +1,6 @@
 mod common;
 
-use raincloud_db::compiler::ast::{Literal, RowDef};
+use raincloud_db::compiler::ast::{Literal, Record};
 use raincloud_db::compiler::bounded_ast::BoundExpr;
 use raincloud_db::interpreter::executor::{Executor, ExprContext};
 use crate::common::setup_interpreter;
@@ -13,7 +13,7 @@ fn setup_executor() -> Executor {
 #[test]
 fn test_literal() {
     let executor = setup_executor();
-    let ctx = ExprContext { row: &RowDef { record: vec![] } };
+    let ctx = ExprContext { row: Some(&Record { record: vec![] }) };
 
     let expr1 = BoundExpr::Literal(Literal::Int(10));
     let expr2 = BoundExpr::Literal(Literal::String("Hello World!".to_string()));
@@ -30,12 +30,12 @@ fn test_literal() {
 fn test_column_access() {
     let executor = setup_executor();
     let ctx = ExprContext {
-        row: &RowDef {
+        row: Some(&Record {
             record: vec![
                 Literal::Int(25),
                 Literal::String("Alice".to_string()),
             ]
-        }
+        })
     };
     assert_eq!(
         executor.execute_expression(&BoundExpr::Column(0), &ctx).unwrap(),
@@ -51,9 +51,9 @@ fn test_column_access() {
 fn test_column_out_of_bounds() {
     let executor = setup_executor();
     let ctx = ExprContext {
-        row: &RowDef {
+        row: Some(&Record {
             record: vec![Literal::Int(10)]
-        }
+        })
     };
     assert!(executor.execute_expression(&BoundExpr::Column(5), &ctx).is_err());
 }
@@ -61,7 +61,7 @@ fn test_column_out_of_bounds() {
 #[test]
 fn test_equals_literals_true() {
     let executor = setup_executor();
-    let ctx = ExprContext { row: &RowDef { record: vec![] } };
+    let ctx = ExprContext { row: Some(&Record { record: vec![] }) };
     let expr = BoundExpr::Equals(
         Box::new(BoundExpr::Literal(Literal::Int(10))),
         Box::new(BoundExpr::Literal(Literal::Int(10))),
@@ -75,7 +75,7 @@ fn test_equals_literals_true() {
 #[test]
 fn test_equals_literals_false() {
     let executor = setup_executor();
-    let ctx = ExprContext { row: &RowDef { record: vec![] } };
+    let ctx = ExprContext { row: Some(&Record { record: vec![] }) };
     let expr = BoundExpr::Equals(
         Box::new(BoundExpr::Literal(Literal::Int(10))),
         Box::new(BoundExpr::Literal(Literal::Int(20))),
@@ -90,9 +90,9 @@ fn test_equals_literals_false() {
 fn test_equals_column_literal() {
     let executor = setup_executor();
     let ctx = ExprContext {
-        row: &RowDef {
+        row: Some(&Record {
             record: vec![Literal::Int(30)]
-        }
+        })
     };
     let expr = BoundExpr::Equals(
         Box::new(BoundExpr::Column(0)),
@@ -108,12 +108,12 @@ fn test_equals_column_literal() {
 fn test_equals_column_column() {
     let executor = setup_executor();
     let ctx = ExprContext {
-        row: &RowDef {
+        row: Some(&Record {
             record: vec![
                 Literal::Int(10),
                 Literal::Int(10),
             ]
-        }
+        })
     };
     let expr = BoundExpr::Equals(
         Box::new(BoundExpr::Column(0)),
@@ -128,7 +128,7 @@ fn test_equals_column_column() {
 #[test]
 fn test_nested_equals() {
     let executor = setup_executor();
-    let ctx = ExprContext { row: &RowDef { record: vec![] } };
+    let ctx = ExprContext { row: Some(&Record { record: vec![] }) };
     let inner = BoundExpr::Equals(
         Box::new(BoundExpr::Literal(Literal::Int(1))),
         Box::new(BoundExpr::Literal(Literal::Int(1))),
@@ -146,7 +146,7 @@ fn test_nested_equals() {
 #[test]
 fn test_basic_arithmetic() {
     let executor = setup_executor();
-    let ctx = ExprContext { row: &RowDef { record: vec![] } };
+    let ctx = ExprContext { row: Some(&Record { record: vec![] }) };
 
     let add = BoundExpr::Add(
         Box::new(BoundExpr::Literal(Literal::Int(2))),
@@ -174,7 +174,7 @@ fn test_basic_arithmetic() {
 #[test]
 fn test_unary_minus() {
     let executor = setup_executor();
-    let ctx = ExprContext { row: &RowDef { record: vec![] } };
+    let ctx = ExprContext { row: Some(&Record { record: vec![] }) };
     let expr = BoundExpr::Minus(Box::new(BoundExpr::Literal(Literal::Int(10))));
     assert_eq!(executor.execute_expression(&expr, &ctx).unwrap(), Literal::Int(-10));
 }
@@ -182,7 +182,7 @@ fn test_unary_minus() {
 #[test]
 fn test_comparison() {
     let executor = setup_executor();
-    let ctx = ExprContext { row: &RowDef { record: vec![] } };
+    let ctx = ExprContext { row: Some(&Record { record: vec![] }) };
 
     let gt = BoundExpr::Gt(
         Box::new(BoundExpr::Literal(Literal::Int(5))),
@@ -215,7 +215,7 @@ fn test_comparison() {
 #[test]
 fn test_boolean() {
     let executor = setup_executor();
-    let ctx = ExprContext { row: &RowDef { record: vec![] } };
+    let ctx = ExprContext { row: Some(&Record { record: vec![] }) };
 
     let and_expr = BoundExpr::And(
         Box::new(BoundExpr::Literal(Literal::Bool(true))),
@@ -236,12 +236,11 @@ fn test_boolean() {
 
 #[test]
 fn test_complex_expression() {
-    // (age + 5) > 10 AND NOT false
     let executor = setup_executor();
     let ctx = ExprContext {
-        row: &RowDef {
+        row: Some(&Record {
             record: vec![Literal::Int(7)]
-        }
+        })
     };
 
     let add = BoundExpr::Add(
@@ -266,7 +265,7 @@ fn test_complex_expression() {
 #[test]
 fn test_divide_by_zero() {
     let executor = setup_executor();
-    let ctx = ExprContext { row: &RowDef { record: vec![] } };
+    let ctx = ExprContext { row: Some(&Record { record: vec![] }) };
 
     let expr = BoundExpr::Div(
         Box::new(BoundExpr::Literal(Literal::Int(10))),
@@ -280,7 +279,7 @@ fn test_divide_by_zero() {
 fn test_equals_column_error_propagation() {
     let executor = setup_executor();
     let ctx = ExprContext {
-        row: &RowDef { record: vec![] }
+        row: Some(&Record { record: vec![] })
     };
     let expr = BoundExpr::Equals(
         Box::new(BoundExpr::Column(0)),
@@ -293,7 +292,7 @@ fn test_equals_column_error_propagation() {
 fn test_column_empty_row() {
     let executor = setup_executor();
     let ctx = ExprContext {
-        row: &RowDef { record: vec![] }
+        row: Some(&Record { record: vec![] })
     };
     let expr = BoundExpr::Column(0);
     assert!(executor.execute_expression(&expr, &ctx).is_err());

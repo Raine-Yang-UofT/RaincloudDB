@@ -1,4 +1,4 @@
-use crate::compiler::ast::{Literal, RowDef};
+use crate::compiler::ast::{Literal, Record};
 use crate::compiler::bounded_ast::BoundExpr;
 use crate::interpreter::executor::{Executor, ExprContext};
 use crate::types::{ColumnId, DbError, DbResult};
@@ -10,7 +10,7 @@ impl Executor {
             BoundExpr::Literal(lit) =>
                 Ok(lit.clone()),
             BoundExpr::Column(index) =>
-                self.execute_column(*index, &ctx.row),
+                self.execute_column(*index, ctx),
 
             // comparisons
             BoundExpr::Equals(l, r) =>
@@ -51,10 +51,14 @@ impl Executor {
     }
 
     // column helper
-    pub fn execute_column(&self, index: ColumnId, row: &RowDef) -> DbResult<Literal> {
-        row.record.get(index)
-            .cloned()
-            .ok_or_else(|| DbError::ColumnNotFound(format!("column {} not found", index)))
+    pub fn execute_column(&self, index: ColumnId, ctx: &ExprContext) -> DbResult<Literal> {
+        if let Some(row) = ctx.row {
+            row.record.get(index)
+                .cloned()
+                .ok_or_else(|| DbError::ColumnNotFound(format!("column {} not found", index)))
+        } else {
+            Err(DbError::ColumnNotFound(format!("Invalid column {}", index)))
+        }
     }
 
     // comparison helper

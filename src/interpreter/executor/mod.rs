@@ -4,7 +4,7 @@ mod expression_executor;
 mod select_executor;
 
 use std::sync::{Arc, RwLock};
-use crate::compiler::ast::RowDef;
+use crate::compiler::ast::Record;
 use crate::compiler::bounded_ast::BoundStmt;
 use crate::interpreter::ExecResult;
 use crate::interpreter::execution_context::ExecutionContext;
@@ -16,7 +16,7 @@ pub struct Executor {
 
 /// Context for executing an expression
 pub struct ExprContext<'a> {
-    pub row: &'a RowDef,
+    pub row: Option<&'a Record>,
 }
 
 

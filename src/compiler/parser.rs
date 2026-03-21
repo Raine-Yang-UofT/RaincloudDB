@@ -240,16 +240,16 @@ impl Parser {
     /**
     row := ( expression ( , expression )* )
     */
-    fn parse_value_row(&mut self) -> DbResult<RowDef> {
+    fn parse_value_row(&mut self) -> DbResult<Vec<Expression>> {
         self.consume(TokenType::LParen)?;
-
-        let mut row = vec![self.parse_literal()?];
+        
+        let mut row = vec![self.parse_expression()?];
         while self.match_token(TokenType::Comma) {
-            row.push(self.parse_literal()?);
+            row.push(self.parse_expression()?);
         }
 
         self.consume(TokenType::RParen)?;
-        Ok(RowDef { record: row })
+        Ok(row)
     }
 
     // helper functions

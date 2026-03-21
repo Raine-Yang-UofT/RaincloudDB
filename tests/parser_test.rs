@@ -77,12 +77,14 @@ fn test_insert() {
         Statement::Insert { table, rows } => {
             assert_eq!(table, "USERS");
             assert_eq!(rows.len(), 1);
-            if let Literal::Int(v) = &rows[0].record[0] {
+
+            if let Expression::Literal(Literal::Int(v)) = &rows[0][0] {
                 assert_eq!(*v, 1);
             } else {
-                panic!("Expected Literal::String");
+                panic!("Expected Literal::Int");
             }
-            if let Literal::String(s) = &rows[0].record[1] {
+
+            if let Expression::Literal(Literal::String(s)) = &rows[0][1] {
                 assert_eq!(s, "Alice");
             } else {
                 panic!("Expected Literal::String");
@@ -101,28 +103,142 @@ fn test_insert_multiple() {
         Statement::Insert { table, rows } => {
             assert_eq!(table, "USERS");
             assert_eq!(rows.len(), 2);
-            if let Literal::Int(v) = &rows[0].record[0] {
+
+            if let Expression::Literal(Literal::Int(v)) = &rows[0][0] {
                 assert_eq!(*v, 1);
             } else {
                 panic!("Expected Literal::Int");
             }
-            if let Literal::String(s) = &rows[0].record[1] {
+
+            if let Expression::Literal(Literal::String(s)) = &rows[0][1] {
                 assert_eq!(s, "Alice");
             } else {
                 panic!("Expected Literal::String");
             }
-            if let Literal::Int(v) = &rows[1].record[0] {
+
+            if let Expression::Literal(Literal::Int(v)) = &rows[1][0] {
                 assert_eq!(*v, 2);
             } else {
                 panic!("Expected Literal::Int");
             }
-            if let Literal::String(s) = &rows[1].record[1] {
+
+            if let Expression::Literal(Literal::String(s)) = &rows[1][1] {
                 assert_eq!(s, "Bob");
             } else {
                 panic!("Expected Literal::String");
             }
         }
         _ => panic!("Expected Insert statement"),
+    }
+}
+
+#[test]
+fn test_insert_multiple_expression_rows() {
+    let sql = "INSERT INTO users VALUES (1+2, 3*4), (10-5, 8/2);";
+    let stmts = parse_sql(sql);
+
+    match &stmts[0] {
+        Statement::Insert { rows, .. } => {
+
+            match &rows[0][0] {
+                Expression::Binary { op, .. } => {
+                    assert_eq!(*op, BinaryOp::Add);
+                }
+                _ => panic!(),
+            }
+
+            match &rows[0][1] {
+                Expression::Binary { op, .. } => {
+                    assert_eq!(*op, BinaryOp::Mul);
+                }
+                _ => panic!(),
+            }
+
+            match &rows[1][0] {
+                Expression::Binary { op, .. } => {
+                    assert_eq!(*op, BinaryOp::Sub);
+                }
+                _ => panic!(),
+            }
+
+            match &rows[1][1] {
+                Expression::Binary { op, .. } => {
+                    assert_eq!(*op, BinaryOp::Div);
+                }
+                _ => panic!(),
+            }
+        }
+        _ => panic!("Expected Insert"),
+    }
+}
+
+#[test]
+fn test_insert_nested_expression() {
+    let sql = "INSERT INTO users VALUES ((1 + 2) * 3);";
+    let stmts = parse_sql(sql);
+
+    match &stmts[0] {
+        Statement::Insert { rows, .. } => {
+
+            match &rows[0][0] {
+                Expression::Binary { lhs, op, rhs } => {
+                    assert_eq!(*op, BinaryOp::Mul);
+
+                    match &**lhs {
+                        Expression::Binary { op, .. } => {
+                            assert_eq!(*op, BinaryOp::Add);
+                        }
+                        _ => panic!("Expected Add inside Mul"),
+                    }
+
+                    assert_eq!(
+                        **rhs,
+                        Expression::Literal(Literal::Int(3))
+                    );
+                }
+                _ => panic!("Expected Mul"),
+            }
+
+        }
+        _ => panic!("Expected Insert"),
+    }
+}
+
+#[test]
+fn test_insert_with_add_expression() {
+    let sql = "INSERT INTO users VALUES (1 + 2, 'Alice');";
+    let stmts = parse_sql(sql);
+
+    match &stmts[0] {
+        Statement::Insert { table, rows } => {
+            assert_eq!(table, "USERS");
+            assert_eq!(rows.len(), 1);
+
+            match &rows[0][0] {
+                Expression::Binary { lhs, op, rhs } => {
+                    assert_eq!(*op, BinaryOp::Add);
+
+                    assert_eq!(
+                        **lhs,
+                        Expression::Literal(Literal::Int(1))
+                    );
+
+                    assert_eq!(
+                        **rhs,
+                        Expression::Literal(Literal::Int(2))
+                    );
+                }
+                _ => panic!("Expected Add expression"),
+            }
+
+            match &rows[0][1] {
+                Expression::Literal(Literal::String(s)) => {
+                    assert_eq!(s, "Alice");
+                }
+                _ => panic!("Expected string"),
+            }
+        }
+        _ => panic!("Expected Insert"),
     }
 }
 

@@ -18,7 +18,7 @@ pub enum Statement {
 
     Insert {
         table: String,
-        rows: Vec<RowDef>,
+        rows: Vec<Vec<Expression>>,
     },
 
     Update {
@@ -144,14 +144,14 @@ pub struct Assignment {
     pub value: Expression,
 }
 
-/// Row Definition
+/// Record Definition
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RowDef {
+pub struct Record {
     pub record: Vec<Literal>,
 }
 
 // AST node methods
-impl RowDef {
+impl Record {
 
     /// Convert record to raw bytes
     pub fn serialize(&self) -> Result<Vec<u8>, String> {
@@ -204,6 +204,6 @@ impl RowDef {
             }
         }
 
-        Ok(RowDef { record })
+        Ok(Record { record })
     }
 }

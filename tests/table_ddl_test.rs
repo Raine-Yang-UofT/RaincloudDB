@@ -1,6 +1,7 @@
 mod common;
 
 use paste::paste;
+use raincloud_db::compiler::ast::Literal;
 use raincloud_db::interpreter::ExecResult;
 use raincloud_db::with_read_pages;
 use crate::common::{test_sql, setup_interpreter, assert_sql_success, assert_sql_failure};
@@ -94,6 +95,59 @@ fn test_insert_multiple_records() {
         _ => panic!("Expected QueryResult"),
     };
     assert_eq!(rows.len(), 4000);
+}
+
+#[test]
+fn test_insert_with_expression_records() {
+    let mut interpreter = setup_interpreter();
+
+    assert_sql_success(
+        "CREATE DATABASE db1; CONNECT TO db1;",
+        &mut interpreter,
+    );
+
+    assert_sql_success(
+        "CREATE TABLE logs (id INT, data1 CHAR(10), data2 INT, data3 CHAR(5));",
+        &mut interpreter,
+    );
+
+    for i in 0..1000 {
+        assert_sql_success(
+            &format!(
+                "INSERT INTO logs VALUES
+                ({i} + 1, \"aaaaaaaaaa\", 1000 + 500, \"aaaaa\"),
+                (2 * 0, \"abcdabcdee\", 10 - 10, \"bbbbb\"),
+                (50 + 50, \";;;;;;;;;;\", 10 * 10, \"+=*;.\"),
+                (100000000 * 10, \"$$$$$$$$$$\", 500000000 + 500000000, \"*****\");"
+            ),
+            &mut interpreter,
+        );
+    }
+
+    // validate total row count
+    let result = test_sql(
+        "SELECT ID, DATA1, DATA2, DATA3 FROM LOGS;",
+        &mut interpreter,
+    );
+
+    let rows = match result[0].as_ref().unwrap() {
+        ExecResult::QueryResult(res) => res,
+        _ => panic!("Expected QueryResult"),
+    };
+
+    assert_eq!(rows.len(), 4000);
+
+    assert_eq!(rows[0][0], "1");          // i+1 where i=0
+    assert_eq!(rows[0][2], "1500");       // 1000+500
+
+    assert_eq!(rows[1][0], "0");          // 2*0
+    assert_eq!(rows[1][2], "0");          // 10-10
+
+    assert_eq!(rows[2][0], "100");        // 50+50
+    assert_eq!(rows[2][2], "100");        // 10*10
+
+    assert_eq!(rows[3][0], "1000000000"); // 100000000*10
+    assert_eq!(rows[3][2], "1000000000"); // 500M+500M
 }
 
 #[test]
