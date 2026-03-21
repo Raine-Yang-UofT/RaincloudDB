@@ -136,7 +136,7 @@ fn test_update() {
             assert_eq!(table, "USERS");
             assert_eq!(assignments.len(), 1);
             assert_eq!(assignments[0].column, "NAME");
-            assert!(matches!(assignments[0].value, Literal::String(ref s) if s == "Bob"));
+            assert!(matches!(assignments[0].value, Expression::Literal(Literal::String(ref s)) if s == "Bob"));
             assert!(selection.is_none(), "Expected no WHERE clause");
         }
         _ => panic!("Expected Update statement"),
@@ -153,7 +153,7 @@ fn test_update_with_where() {
             assert_eq!(table, "USERS");
             assert_eq!(assignments.len(), 1);
             assert_eq!(assignments[0].column, "NAME");
-            assert!(matches!(assignments[0].value, Literal::String(ref s) if s == "Bob"));
+            assert!(matches!(assignments[0].value, Expression::Literal(Literal::String(ref s)) if s == "Bob"));
             match selection {
                 Some(Expression::Binary { lhs, op, rhs}) => {
                     assert_eq!(*op, BinaryOp::Eq);
@@ -269,13 +269,13 @@ fn test_update_multiple_assignments() {
             assert_eq!(assignments.len(), 3);
             
             assert_eq!(assignments[0].column, "NAME");
-            assert!(matches!(assignments[0].value, Literal::String(ref s) if s == "Bob"));
+            assert!(matches!(assignments[0].value, Expression::Literal(Literal::String(ref s)) if s == "Bob"));
 
             assert_eq!(assignments[1].column, "AGE");
-            assert!(matches!(assignments[1].value, Literal::Int(30)));
+            assert!(matches!(assignments[1].value, Expression::Literal(Literal::Int(30))));
 
             assert_eq!(assignments[2].column, "EMAIL");
-            assert!(matches!(assignments[2].value, Literal::String(ref s) if s == "bob@example.com"));
+            assert!(matches!(assignments[2].value, Expression::Literal(Literal::String(ref s)) if s == "bob@example.com"));
 
             match selection {
                 Some(Expression::Binary { lhs, op, rhs}) => {

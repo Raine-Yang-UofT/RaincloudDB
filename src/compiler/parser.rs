@@ -233,7 +233,7 @@ impl Parser {
     fn parse_assignment(&mut self) -> DbResult<Assignment> {
         let column = self.consume_identifier()?;
         self.consume(TokenType::Equal)?;
-        let value = self.parse_literal()?;
+        let value = self.parse_expression()?;
         Ok(Assignment { column, value })
     }
 

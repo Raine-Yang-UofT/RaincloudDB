@@ -106,14 +106,18 @@ impl Analyzer {
                 return Err(DbError::DuplicateColumn(format!("Duplicate column '{}'", assignment.column)));
             }
 
-            // check data type compatibility
+            // check update expression and data type compatibility
+            let upd_expr = self.analyze_expression(&assignment.value, schema)?;
             let column_def = &schema.columns[column_id];
-            self.validate_data_type(&assignment.value, column_def)?;
+            if !column_def.data_type.check_type(&upd_expr.expr_type) {
+                return Err(DbError::TypeMismatch(
+                    format!("The expression evaluates to a different data type than column {:?}", column_def)));
+            }
 
             // bind assignment
             bound_assignments.push(BoundAssignment {
                 column_id,
-                value: assignment.value.clone(),
+                value: upd_expr.expr,
             });
         }
 

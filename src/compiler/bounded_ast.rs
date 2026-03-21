@@ -65,5 +65,5 @@ pub enum BoundStmt {
 #[derive(Debug, Clone, PartialEq)]
 pub struct BoundAssignment {
     pub column_id: ColumnId,
-    pub value: Literal,
+    pub value: BoundExpr,
 }

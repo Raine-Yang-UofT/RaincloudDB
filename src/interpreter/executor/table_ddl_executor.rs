@@ -129,10 +129,11 @@ impl Executor {
 
                     // skip the row only if the condition evaluates to false
                     // no condition means updating every row
+                    let expr_ctx = ExprContext { row: &row.clone() };
                     if let Some(condition) = selection {
                         if let Literal::Bool(false) = self.execute_expression(
                             &condition.expr,
-                            &ExprContext { row: &row }
+                            &expr_ctx,
                         )? {
                             continue;
                         }
@@ -140,7 +141,7 @@ impl Executor {
 
                     // apply update and serialize result
                     for assign in assignments {
-                        row.record[assign.column_id] = assign.value.clone();
+                        row.record[assign.column_id] = self.execute_expression(&assign.value, &expr_ctx)?;
                     }
                     let result_bytes = row.serialize().expect("Error serializing result");
                     updates.push((slot_id, result_bytes));

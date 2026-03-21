@@ -166,31 +166,30 @@ fn test_select_no_rows() {
     assert_eq!(rows.len(), 0);
 }
 
-// TODO: implement expression support in update
-// #[test]
-// fn test_select_after_update() {
-//     let mut interpreter = setup_interpreter();
-//
-//     assert_sql_success(
-//         "CREATE DATABASE db1; CONNECT TO db1;
-//          CREATE TABLE t (id INT, v INT);
-//          INSERT INTO t VALUES (1,10), (2,20);",
-//         &mut interpreter,
-//     );
-//
-//     assert_sql_success(
-//         "UPDATE t SET v = v + 5 WHERE id = 2;",
-//         &mut interpreter,
-//     );
-//
-//     let rows = get_rows(test_sql(
-//         "SELECT id, v FROM t WHERE id = 2;",
-//         &mut interpreter,
-//     ));
-//
-//     assert_eq!(rows.len(), 1);
-//     assert_eq!(rows[0], vec!["2", "25"]);
-// }
+#[test]
+fn test_select_after_update() {
+    let mut interpreter = setup_interpreter();
+
+    assert_sql_success(
+        "CREATE DATABASE db1; CONNECT TO db1;
+         CREATE TABLE t (id INT, v INT);
+         INSERT INTO t VALUES (1,10), (2,20);",
+        &mut interpreter,
+    );
+
+    assert_sql_success(
+        "UPDATE t SET v = v + 5 WHERE id = 2;",
+        &mut interpreter,
+    );
+
+    let rows = get_rows(test_sql(
+        "SELECT id, v FROM t WHERE id = 2;",
+        &mut interpreter,
+    ));
+
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0], vec!["2", "25"]);
+}
 
 #[test]
 fn test_select_constant_expression() {
@@ -212,5 +211,3 @@ fn test_select_constant_expression() {
     assert_eq!(rows[0], vec!["1", "3", "0"]);
     assert_eq!(rows[1], vec!["2", "3", "0"]);
 }
-
-

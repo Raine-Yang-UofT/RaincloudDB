@@ -2,8 +2,7 @@ mod common;
 
 use std::collections::HashMap;
 use raincloud_db::compiler::ast::{
-    ColumnDef, DataType, ExprType, Expression, Literal,
-    BinaryOp, UnaryOp,
+    ColumnDef, DataType, ExprType, Expression, Literal, BinaryOp,
 };
 use raincloud_db::compiler::bounded_ast::{BoundExpr, BoundExprNode};
 use raincloud_db::interpreter::analyzer::Analyzer;

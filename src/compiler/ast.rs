@@ -48,6 +48,15 @@ pub enum DataType {
     Char(u32), // CHAR(n)
 }
 
+impl DataType {
+    pub fn check_type(&self, expr: &ExprType) -> bool {
+        match self {
+            DataType::Int => *expr == ExprType::Int,
+            DataType::Char(_) => *expr == ExprType::Char,
+        }
+    }
+}
+
 /// Expression
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Expression {
@@ -132,7 +141,7 @@ impl fmt::Display for Literal {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Assignment {
     pub column: String,
-    pub value: Literal,
+    pub value: Expression,
 }
 
 /// Row Definition
