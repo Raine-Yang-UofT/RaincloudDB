@@ -1,7 +1,6 @@
 mod common;
 
 use paste::paste;
-use raincloud_db::compiler::ast::Literal;
 use raincloud_db::interpreter::ExecResult;
 use raincloud_db::with_read_pages;
 use crate::common::{test_sql, setup_interpreter, assert_sql_success, assert_sql_failure};
