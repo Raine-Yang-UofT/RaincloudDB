@@ -28,7 +28,7 @@ pub struct StorageEngine {
     // primary buffer pool for DataPage
     pub buffer_pool: Arc<BufferPool<DataPage>>,
 
-    // underlying disk manager for data pages
+    // disk manager for data pages
     pub data_disk: Arc<dyn DiskManager<DataPage>>,
 
     // disk manager used by the free list (header pages)

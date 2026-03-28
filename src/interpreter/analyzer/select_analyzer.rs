@@ -15,7 +15,7 @@ impl Analyzer {
 
         // check the table exists in database
         let database = ctx.current_db.as_ref().unwrap();
-        let schema = ctx.catalog.get_table_schema(database, table)
+        let schema = ctx.catalogs.get(database).unwrap().get_table_schema(table)
             .ok_or_else(|| DbError::TableNotFound(format!("Table '{}' does not exist", table)))?;
 
         // resolve column identifiers to column id

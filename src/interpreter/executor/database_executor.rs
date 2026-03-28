@@ -14,10 +14,10 @@ impl Executor {
         std::fs::File::create(database_dir.join(HEADER_FILE)).map_err(|e| DbError::InternalError(e.to_string()))?;
 
         // add database to catalog
-        ctx.catalog.add_database(name.to_string());
+        ctx.global_catalog.add_database(name.to_string());
 
         // initialize storage engine
-        ctx.initialize_storage_engine(String::from(name))
+        ctx.initialize_database_ctx(String::from(name))
             .expect("Failed to register storage engine");
 
         Ok(ExecResult::Success(format!("Database '{}' created successfully", name)))
@@ -35,7 +35,7 @@ impl Executor {
         }
 
         // remove database from catalog
-        ctx.catalog.remove_database(name);
+        ctx.global_catalog.remove_database(name);
         ctx.storage_engines.remove(name);
 
         Ok(ExecResult::Success(format!("Database '{}' dropped successfully.", name)))

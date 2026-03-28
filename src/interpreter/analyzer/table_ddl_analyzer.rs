@@ -11,7 +11,7 @@ impl Analyzer {
 
         // check there is no duplicate table name in current database
         let database = ctx.current_db.as_ref().unwrap();
-        if ctx.catalog.get_table_schema(&database, name).is_some() {
+        if ctx.catalogs.get(database).unwrap().get_table_schema(name).is_some() {
             return Err(DbError::DuplicateTable(format!("The table '{}' already exists", name)));
         }
 
@@ -33,7 +33,7 @@ impl Analyzer {
 
         // check the table exists in database
         let database = ctx.current_db.as_ref().unwrap();
-        if ctx.catalog.get_table_schema(&database, name).is_none() {
+        if ctx.catalogs.get(database).unwrap().get_table_schema(name).is_none() {
             return Err(DbError::TableNotFound(format!("The table '{}' does not exists", name)));
         }
 
@@ -45,7 +45,7 @@ impl Analyzer {
 
         // check the table exists in database
         let database = ctx.current_db.as_ref().unwrap();
-        let schema = ctx.catalog.get_table_schema(database, table)
+        let schema = ctx.catalogs.get(database).unwrap().get_table_schema(table)
             .ok_or_else(|| DbError::TableNotFound(format!("Table '{}' does not exist", table)))?;
 
         // check the rows match table schema
@@ -91,7 +91,7 @@ impl Analyzer {
 
         // check the table exists in database
         let database = ctx.current_db.as_ref().unwrap();
-        let schema = ctx.catalog.get_table_schema(database, table)
+        let schema = ctx.catalogs.get(database).unwrap().get_table_schema(table)
             .ok_or_else(|| DbError::TableNotFound(format!("Table '{}' does not exist", table)))?;
 
         // check the update assignment is not empty

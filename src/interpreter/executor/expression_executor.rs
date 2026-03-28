@@ -1,4 +1,4 @@
-use crate::compiler::ast::{Literal, Record};
+use crate::compiler::ast::Literal;
 use crate::compiler::bounded_ast::BoundExpr;
 use crate::interpreter::executor::{Executor, ExprContext};
 use crate::types::{ColumnId, DbError, DbResult};

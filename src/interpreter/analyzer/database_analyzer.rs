@@ -8,7 +8,7 @@ impl Analyzer {
         let ctx = self.context.read().unwrap();
 
         // check no duplicate database name in catalog
-        if ctx.catalog.has_database(name) {
+        if ctx.global_catalog.has_database(name) {
             return Err(DbError::DuplicateDatabase(format!("Database {} already exists", name)));
         }
 
@@ -25,7 +25,7 @@ impl Analyzer {
         let ctx = self.context.read().unwrap();
 
         // check the database exists in catalog
-        if !ctx.catalog.has_database(name) {
+        if !ctx.global_catalog.has_database(name) {
             return Err(DbError::DatabaseNotFound(format!("Database '{}' does not exist", name)));
         }
 
@@ -49,7 +49,7 @@ impl Analyzer {
         }
 
         // check the database exists
-        if !ctx.catalog.has_database(name) {
+        if !ctx.global_catalog.has_database(name) {
             return Err(DbError::DatabaseNotFound(format!("Database {} not found", name)));
         }
 

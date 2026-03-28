@@ -18,7 +18,7 @@ impl Executor {
         let ctx = self.context.read().unwrap();
         let database = ctx.current_db.clone().unwrap();
 
-        let schema = ctx.catalog.get_table_schema(&database, table).unwrap();
+        let schema = ctx.catalogs.get(&database).unwrap().get_table_schema(table).unwrap();
         let storage_engine = ctx.storage_engines.get(&database).unwrap();
 
         let mut result = Vec::new();

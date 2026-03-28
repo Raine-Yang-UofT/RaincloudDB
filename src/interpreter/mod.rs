@@ -1,12 +1,13 @@
 pub mod execution_context;
-pub mod catalog;
+pub mod database_catalog;
 pub mod executor;
 pub mod analyzer;
+pub mod catalog_table;
 
 use std::path::Path;
 use std::sync::{Arc, RwLock};
 use execution_context::ExecutionContext;
-use catalog::Catalog;
+use database_catalog::GlobalCatalog;
 use crate::compiler::ast::Statement;
 use crate::interpreter::analyzer::Analyzer;
 use crate::interpreter::executor::Executor;
@@ -28,7 +29,7 @@ impl Interpreter {
     pub fn new(dbms_root_dir: impl AsRef<Path>) -> Self {
         let dbms_root_dir = dbms_root_dir.as_ref().to_path_buf();
 
-        let catalog = Catalog::new(&dbms_root_dir);
+        let catalog = GlobalCatalog::new(&dbms_root_dir);
         let databases = catalog.list_databases();
 
         let context = Arc::new(RwLock::new(
@@ -39,7 +40,7 @@ impl Interpreter {
         {
             let mut ctx = context.write().unwrap();
             for db_name in databases {
-                ctx.initialize_storage_engine(db_name)
+                ctx.initialize_database_ctx(db_name)
                     .expect("Failed to register storage engine");
             }
         }

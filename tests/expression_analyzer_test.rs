@@ -6,7 +6,7 @@ use raincloud_db::compiler::ast::{
 };
 use raincloud_db::compiler::bounded_ast::{BoundExpr, BoundExprNode};
 use raincloud_db::interpreter::analyzer::Analyzer;
-use raincloud_db::interpreter::catalog::TableSchema;
+use raincloud_db::interpreter::catalog_table::TableSchema;
 use raincloud_db::types::ColumnId;
 use crate::common::setup_interpreter;
 

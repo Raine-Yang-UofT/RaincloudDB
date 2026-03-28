@@ -15,7 +15,7 @@ fn test_create_database() {
     assert!(db_path.exists());
     assert!(db_path.join(DATA_FILE).exists());
     assert!(db_path.join(HEADER_FILE).exists());
-    assert!(ctx.catalog.list_databases().contains(&"DB1".to_string()));
+    assert!(ctx.global_catalog.list_databases().contains(&"DB1".to_string()));
     assert!(ctx.storage_engines.contains_key("DB1"));
 }
 
@@ -53,7 +53,7 @@ fn test_drop_database() {
     assert_sql_success("DISCONNECT; DROP DATABASE db1;", &mut interpreter);
     let ctx = interpreter.context.read().unwrap();
     assert!(!ctx.dbms_root_dir.join("DB1").exists());
-    assert!(!ctx.catalog.list_databases().contains(&"DB1".to_string()));
+    assert!(!ctx.global_catalog.list_databases().contains(&"DB1".to_string()));
     assert!(!ctx.storage_engines.contains_key("DB1"));
 }
 

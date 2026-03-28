@@ -1,7 +1,7 @@
 use crate::compiler::ast::{DataType, Literal, Expression, ExprType, UnaryOp, BinaryOp};
 use crate::compiler::bounded_ast::{BoundExpr, BoundExprNode};
 use crate::interpreter::analyzer::Analyzer;
-use crate::interpreter::catalog::TableSchema;
+use crate::interpreter::catalog_table::TableSchema;
 use crate::types::{DbError, DbResult};
 
 impl Analyzer {

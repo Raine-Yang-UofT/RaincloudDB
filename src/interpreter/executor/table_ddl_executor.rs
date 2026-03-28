@@ -3,10 +3,10 @@ use crate::storage::page::page::{Page, PageError};
 use paste::paste;
 use crate::compiler::ast::{ColumnDef, Literal, Record};
 use crate::interpreter::executor::{Executor, ExprContext};
-use crate::interpreter::catalog::TableSchema;
 use crate::types::{DbError, DbResult, NO_FLUSH};
 use crate::{with_create_pages, with_read_pages, with_write_pages};
 use crate::compiler::bounded_ast::{BoundAssignment, BoundExprNode};
+use crate::interpreter::catalog_table::TableSchema;
 use crate::interpreter::ExecResult;
 
 impl Executor {
@@ -34,9 +34,9 @@ impl Executor {
             first_page_id: page_id,
         };
 
-        match ctx.catalog.add_table(&database, schema) {
+        match ctx.catalogs.get_mut(&database).unwrap().add_table(schema) {
             Ok(_) => Ok(ExecResult::Success(format!("Table '{}' created successfully", name))),
-            Err(e) => Err(DbError::InternalError(e)),
+            Err(e) => Err(e),
         }
     }
 
@@ -45,7 +45,7 @@ impl Executor {
         let database = ctx.current_db.clone().unwrap();
 
         // mark all pages of table as freed
-        let mut page_id = ctx.catalog.get_table_schema(&database, name).unwrap().first_page_id;
+        let mut page_id = ctx.catalogs.get(&database).unwrap().get_table_schema(name).unwrap().first_page_id;
         let mut next_id;
         let storage_engine = ctx.storage_engines.get(&database).unwrap();
         while page_id != 0 {
@@ -57,9 +57,9 @@ impl Executor {
         }
 
         // remove table information from catalog
-        match ctx.catalog.remove_table(&database, name) {
+        match ctx.catalogs.get_mut(&database).unwrap().remove_table(name) {
             Ok(_) => Ok(ExecResult::Success(format!("Table '{}' dropped successfully", name))),
-            Err(e) => Err(DbError::InternalError(e)),
+            Err(e) => Err(e),
         }
     }
 
@@ -70,7 +70,7 @@ impl Executor {
         let expr_ctx = ExprContext { row: None };
 
         // write records to pages
-        let mut page_id = ctx.catalog.get_table_schema(&database, table).unwrap().first_page_id;
+        let mut page_id = ctx.catalogs.get(&database).unwrap().get_table_schema(table).unwrap().first_page_id;
         let storage_engine = ctx.storage_engines.get(&database).unwrap();
         for record in rows {
             let record_values = Record {
@@ -102,7 +102,6 @@ impl Executor {
                     }
                 });
             }
-            
         }
 
         Ok(ExecResult::AffectedRows(num_rows, format!("Insert {} records to table '{}'", num_rows, table)))
@@ -118,7 +117,7 @@ impl Executor {
         let ctx = self.context.read().unwrap();
         let database = ctx.current_db.clone().unwrap();
 
-        let schema = ctx.catalog.get_table_schema(&database, table).unwrap();
+        let schema = ctx.catalogs.get(&database).unwrap().get_table_schema(table).unwrap();
         let storage_engine = ctx.storage_engines.get(&database).unwrap();
 
         let mut page_id = schema.first_page_id;

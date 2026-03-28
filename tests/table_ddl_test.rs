@@ -15,8 +15,8 @@ fn test_create_table() {
 
     // check catalog for table existence and initial page allocation
     let ctx = interpreter.context.read().unwrap();
-    let catalog = &ctx.catalog;
-    let table = catalog.get_table_schema("db1", "users")
+    let catalog = &ctx.catalogs.get("DB1").unwrap();
+    let table = catalog.get_table_schema("users")
         .expect("Table should exist in catalog");
 
     assert_eq!(table.name, "USERS");
@@ -63,7 +63,7 @@ fn test_insert_and_page_overflow() {
     // the table schema should still point to the same first_page_id,
     // but the storage engine should now have multiple pages linked.
     let ctx = interpreter.context.read().unwrap();
-    let table = ctx.catalog.get_table_schema("db1", "logs").unwrap();
+    let table = ctx.catalogs.get("DB1").unwrap().get_table_schema("logs").unwrap();
     let first_id = table.first_page_id;
 
     // check if a second page was linked
@@ -159,7 +159,7 @@ fn test_drop_table_cleans_up_pages() {
 
     // check catalog entry is removed
     let ctx = interpreter.context.read().unwrap();
-    assert!(ctx.catalog.get_table_schema("db1", "temp").is_none());
+    assert!(ctx.catalogs.get("DB1").unwrap().get_table_schema("temp").is_none());
 }
 
 #[test]
