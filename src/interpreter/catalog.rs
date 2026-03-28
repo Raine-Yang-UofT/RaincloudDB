@@ -74,7 +74,7 @@ impl Catalog {
     }
 
     pub fn has_database(&self, name: &str) -> bool {
-        self.data.databases.contains_key(name)
+        self.data.databases.contains_key(&name.to_uppercase())
     }
 
     pub fn add_database(&mut self, name: String) {
@@ -108,11 +108,11 @@ impl Catalog {
             .get_mut(db)
             .ok_or_else(|| format!("Database '{}' does not exist", db))?;
 
-        if database.tables.contains_key(table_schema.name.as_str()) {
+        if database.tables.contains_key(table_schema.name.to_uppercase().as_str()) {
             return Err(format!("Table '{}' already exists", table_schema.name));
         }
 
-        database.tables.insert(table_schema.name.clone(), table_schema);
+        database.tables.insert(table_schema.name.to_uppercase().clone(), table_schema);
         self.save_catalog().map_err(|e| format!("Failed to add table: {}", e))?;
         Ok(())
     }
