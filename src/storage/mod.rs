@@ -73,7 +73,7 @@ impl StorageEngine {
     }
     
     /// Deactivate storage engine and flush all dirty pages
-    pub fn deactivate(&mut self) {
+    pub fn deactivate(&self) {
         self.buffer_pool.flush_all();
         self.free_list.lock().unwrap().flush_all();
     }

@@ -49,6 +49,8 @@ impl Executor {
 
     pub fn disconnect_database(&mut self) -> DbResult<ExecResult> {
         let mut ctx = self.context.write().unwrap();
+        // deactivate storage engine and flush all dirty pages
+        ctx.storage_engines.get(ctx.current_db.as_deref().unwrap()).unwrap().deactivate();
         ctx.current_db = None;
         Ok(ExecResult::Success("Disconnected from database".to_string()))
     }
