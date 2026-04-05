@@ -43,7 +43,8 @@ impl Parser {
     | drop_table_stmt
     | insert_stmt
     | update_stmt
-    | select_stmt;
+    | select_stmt
+    | delete_stmt
      */
     fn parse_statement(&mut self) -> DbResult<Statement> {
         match self.peek().token_type {
@@ -54,6 +55,7 @@ impl Parser {
             TokenType::Insert => self.parse_insert(),
             TokenType::Update => self.parse_update(),
             TokenType::Select => self.parse_select(),
+            TokenType::Delete => self.parse_delete(),
             _ => Err(DbError::ParseError(format!("Unexpected token {:?} at line {}", self.peek(), self.peek().line))),
         }
     }
@@ -225,6 +227,23 @@ impl Parser {
         self.consume(TokenType::Semicolon)?;
 
         Ok(Statement::Select {table, columns, selection})
+    }
+
+    /**
+    delete_stmt := DELETE FROM identifier (WHERE expression)?;
+    */
+    fn parse_delete(&mut self) -> DbResult<Statement> {
+        self.consume(TokenType::Delete)?;
+        self.consume(TokenType::From)?;
+        let table = self.consume_identifier()?;
+
+        let selection = if self.match_token(TokenType::Where) {
+            Some(self.parse_expression()?)
+        } else { None };
+
+        self.consume(TokenType::Semicolon)?;
+
+        Ok(Statement::Delete {table, selection})
     }
 
     /**

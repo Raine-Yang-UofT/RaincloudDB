@@ -3,7 +3,7 @@ mod common;
 use paste::paste;
 use raincloud_db::interpreter::ExecResult;
 use raincloud_db::with_read_pages;
-use crate::common::{test_sql, setup_interpreter, assert_sql_success, assert_sql_failure};
+use crate::common::{test_sql, setup_interpreter, assert_sql_success, assert_sql_failure, get_rows};
 
 #[test]
 fn test_create_table() {
@@ -253,6 +253,12 @@ fn test_update_with_constant_expression() {
         UPDATE temp SET id = 6 WHERE 1 = 0;",
         &mut interpreter
     );
+
+    let rows = get_rows(test_sql(
+        "SELECT id, name FROM temp;", &mut interpreter
+    ));
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0], vec!["0", "'bar  '"]);
 }
 
 #[test]
@@ -282,6 +288,38 @@ fn test_update_invalid_predicate_type() {
     assert_sql_success("CREATE TABLE temp (id INT, name CHAR(5));", &mut interpreter);
     assert_sql_success("INSERT INTO temp VALUES (0, \"foo  \");", &mut interpreter);
     assert_sql_failure("UPDATE temp SET name = \"bar  \" WHERE name;", &mut interpreter);
+}
+
+#[test]
+fn test_delete_with_predicate() {
+    let mut interpreter = setup_interpreter();
+
+    assert_sql_success("CREATE DATABASE db1; CONNECT TO db1;", &mut interpreter);
+    assert_sql_success("CREATE TABLE temp (id INT, name CHAR(5));", &mut interpreter);
+    assert_sql_success("INSERT INTO temp VALUES (0, \"aaaaa\"), (1, \"bbbbb\"), (2, \"bbbbb\");", &mut interpreter);
+
+    assert_sql_success("DELETE FROM temp WHERE name = \"bbbbb\";", &mut interpreter);
+
+    let rows = get_rows(test_sql(
+        "SELECT ID, NAME FROM temp;", &mut interpreter
+    ));
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0], vec!["0", "'aaaaa'"]);
+}
+
+#[test]
+fn test_delete_all_records() {
+    let mut interpreter = setup_interpreter();
+
+    assert_sql_success("CREATE DATABASE db1; CONNECT TO db1;", &mut interpreter);
+    assert_sql_success("CREATE TABLE temp (id INT, price INT, product CHAR(5));", &mut interpreter);
+    assert_sql_success("INSERT INTO temp VALUES (0, 100, \"aaaaa\"), (1, 245, \"bbbbb\"), (2, 500, \"abcde\");", &mut interpreter);
+
+    assert_sql_success("DELETE FROM temp;", &mut interpreter);
+
+    let rows = get_rows(test_sql(
+        "SELECT ID, PRICE, PRODUCT FROM TEMP;", &mut interpreter
+    ));
 }
 
 #[test]

@@ -39,13 +39,16 @@ impl Analyzer {
                 self.analyze_drop_table(name)
             }
             Statement::Insert { table, rows } => {
-                self.analyze_insert_table(table, rows)
+                self.analyze_insert(table, rows)
             }
             Statement::Update { table, assignments, selection } => {
-                self.analyze_update_table(table, assignments, selection)
+                self.analyze_update(table, assignments, selection)
             }
             Statement::Select { columns, table, selection } => {
                 self.analyze_select(table, columns, selection)
+            }
+            Statement::Delete { table, selection } => {
+                self.analyze_delete(table, selection)
             }
         }
     }

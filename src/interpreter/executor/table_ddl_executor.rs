@@ -63,7 +63,7 @@ impl Executor {
         }
     }
 
-    pub fn insert_table(&mut self, table: &str, rows: &Vec<Vec<BoundExprNode>>) -> DbResult<ExecResult> {
+    pub fn insert(&mut self, table: &str, rows: &Vec<Vec<BoundExprNode>>) -> DbResult<ExecResult> {
         let ctx = self.context.read().unwrap();
         let database = ctx.current_db.clone().unwrap();
         let num_rows = rows.len();
@@ -107,7 +107,7 @@ impl Executor {
         Ok(ExecResult::AffectedRows(num_rows, format!("Insert {} records to table '{}'", num_rows, table)))
     }
 
-    pub fn update_table(
+    pub fn update(
         &mut self, 
         table: &str, 
         assignments: &Vec<BoundAssignment>,
@@ -195,5 +195,60 @@ impl Executor {
         }
 
         Ok(ExecResult::AffectedRows(updated_count, format!("Updated {} rows in table '{}'", updated_count, table)))
+    }
+
+    pub fn delete(
+        &mut self,
+        table: &str,
+        selection: &Option<BoundExprNode>
+    ) -> DbResult<ExecResult> {
+
+        let ctx = self.context.read().unwrap();
+        let database = ctx.current_db.clone().unwrap();
+
+        let schema = ctx.catalogs.get(&database).unwrap().get_table_schema(table).unwrap();
+        let storage_engine = ctx.storage_engines.get(&database).unwrap();
+
+        let mut page_id = schema.first_page_id;
+        let mut next_id;
+        let mut deleted_count = 0;
+
+        while page_id != 0 {
+            with_write_pages!(storage_engine.buffer_pool, [(page_id, page)], NO_FLUSH, {
+                let mut to_delete = Vec::new();
+                next_id = page.get_next_id();
+
+                for (slot_id, record_bytes) in page.iter_record() {
+                    let row = Record::deserialize(record_bytes, &schema.columns)
+                        .expect("Error deserializing record");
+
+                    let expr_ctx = ExprContext { row: Some(&row) };
+
+                    // Apply selection predicate
+                    if let Some(condition) = selection {
+                        if let Literal::Bool(false) = self.execute_expression(
+                            &condition.expr,
+                            &expr_ctx,
+                        )? {
+                            continue;
+                        }
+                    }
+                    to_delete.push(slot_id);
+                }
+
+                // Apply deletions after iteration
+                for slot_id in to_delete {
+                    page.delete_record(slot_id)
+                        .expect("Error deleting record");
+                    deleted_count += 1;
+                }
+            });
+            page_id = next_id;
+        }
+
+        Ok(ExecResult::AffectedRows(
+            deleted_count,
+            format!("Deleted {} rows from table '{}'", deleted_count, table)
+        ))
     }
 }

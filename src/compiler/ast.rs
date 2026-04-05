@@ -27,6 +27,11 @@ pub enum Statement {
         selection: Option<Expression>, // WHERE clause
     },
 
+    Delete {
+        table: String,
+        selection: Option<Expression>, // WHERE clause
+    },
+
     Select {
         columns: Vec<Expression>,
         table: String,

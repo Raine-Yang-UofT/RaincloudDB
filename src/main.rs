@@ -26,7 +26,6 @@ fn execute_input(input: &str, interpreter: &mut Interpreter) {
         },
         Err(err) => print_db_error(err),
     }
-
 }
 
 fn print_exec_result(result: ExecResult) {

@@ -33,11 +33,14 @@ impl Executor {
             BoundStmt::DisconnectDatabase {} => self.disconnect_database(),
             BoundStmt::CreateTable {name, columns } => self.create_table(&name , columns),
             BoundStmt::DropTable { name } => self.drop_table(&name),
-            BoundStmt::Insert { table, rows } => self.insert_table(&table, &rows),
+            BoundStmt::Insert { table, rows } => self.insert(&table, &rows),
             BoundStmt::Update { table, assignments, selection } => 
-                self.update_table(&table, &assignments, &selection),
+                self.update(&table, &assignments, &selection),
             BoundStmt::Select { table, columns, selection } => {
                 self.select(&table, &columns, &selection)
+            }
+            BoundStmt::Delete { table, selection } => {
+                self.delete(&table, &selection)
             }
         }
     }

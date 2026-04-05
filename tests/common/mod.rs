@@ -36,3 +36,10 @@ pub fn assert_sql_failure(sql: &str, interpreter: &mut Interpreter) {
         }
     }
 }
+
+pub fn get_rows(result: Vec<DbResult<ExecResult>>) -> Vec<Vec<String>> {
+    match result[0].as_ref().unwrap() {
+        ExecResult::QueryResult(res) => res.clone(),
+        _ => panic!("Expected QueryResult"),
+    }
+}

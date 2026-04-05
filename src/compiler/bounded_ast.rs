@@ -60,6 +60,11 @@ pub enum BoundStmt {
         columns: Vec<BoundExpr>,
         selection: Option<BoundExprNode>,
     },
+    
+    Delete {
+        table: String,
+        selection: Option<BoundExprNode>,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

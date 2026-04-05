@@ -1,15 +1,6 @@
 mod common;
 
-use raincloud_db::interpreter::ExecResult;
-use raincloud_db::types::DbResult;
-use crate::common::{setup_interpreter, assert_sql_success, test_sql};
-
-fn get_rows(result: Vec<DbResult<ExecResult>>) -> Vec<Vec<String>> {
-    match result[0].as_ref().unwrap() {
-        ExecResult::QueryResult(res) => res.clone(),
-        _ => panic!("Expected QueryResult"),
-    }
-}
+use crate::common::{setup_interpreter, assert_sql_success, test_sql, get_rows};
 
 #[test]
 fn test_select_no_condition() {

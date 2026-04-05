@@ -40,7 +40,7 @@ impl Analyzer {
         Ok(BoundStmt::DropTable { name: String::from(name) })
     }
 
-    pub fn analyze_insert_table(&mut self, table: &str, rows: &Vec<Vec<Expression>>) -> DbResult<BoundStmt> {
+    pub fn analyze_insert(&mut self, table: &str, rows: &Vec<Vec<Expression>>) -> DbResult<BoundStmt> {
         let ctx = self.context.read().unwrap();
 
         // check the table exists in database
@@ -81,7 +81,7 @@ impl Analyzer {
         Ok(BoundStmt::Insert { table: String::from(table), rows: bounded_rows })
     }
 
-    pub fn analyze_update_table(
+    pub fn analyze_update(
         &mut self,
         table: &str,
         assignments: &Vec<Assignment>,
@@ -138,6 +138,32 @@ impl Analyzer {
         Ok(BoundStmt::Update {
             table: table.to_string(),
             assignments: bound_assignments,
+            selection: bound_selection,
+        })
+    }
+
+    pub fn analyze_delete(
+        &mut self,
+        table: &str,
+        selection: &Option<Expression>
+    ) -> DbResult<BoundStmt> {
+        let ctx = self.context.read().unwrap();
+
+        // check the table exists in database
+        let database = ctx.current_db.as_ref().unwrap();
+        let schema = ctx.catalogs.get(database).unwrap().get_table_schema(table)
+            .ok_or_else(|| DbError::TableNotFound(format!("Table '{}' does not exist", table)))?;
+
+        // bind WHERE clause
+        let bound_selection = match selection {
+            Some(expr) => {
+                Some(self.analyze_where_clause(expr, schema)?)
+            }
+            None => None,
+        };
+
+        Ok(BoundStmt::Delete {
+            table: table.to_string(),
             selection: bound_selection,
         })
     }

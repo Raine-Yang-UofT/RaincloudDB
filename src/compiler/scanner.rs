@@ -94,6 +94,7 @@ impl Scanner {
             "SET" => TokenType::Set,
             "WHERE" => TokenType::Where,
             "SELECT" => TokenType::Select,
+            "DELETE" => TokenType::Delete,
             "FROM" => TokenType::From,
             "INT" => TokenType::Int,
             "CHAR" => TokenType::Char,
