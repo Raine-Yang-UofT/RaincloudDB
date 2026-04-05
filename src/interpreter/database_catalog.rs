@@ -21,14 +21,9 @@ impl GlobalCatalog {
         // load catalog data
         let catalog_path = dbms_root_dir.join(CATALOG_FILE);
 
-        let data = match Self::load_catalog(&catalog_path) {
-            Ok(data) => data,
-            Err(_) => {
-                // create new catalog file
-                let _ = Self::create_empty_catalog(&catalog_path);
-                GlobalCatalogData { databases: HashSet::new() }
-            }
-        };
+        let data = Self::load_catalog(&catalog_path).unwrap_or_else(|_| {
+            GlobalCatalogData { databases: HashSet::new() }
+        });
 
         GlobalCatalog {
             dbms_root_dir: dbms_root_dir.to_path_buf(),
@@ -50,13 +45,6 @@ impl GlobalCatalog {
     pub fn save_catalog(&self) -> io::Result<()> {
         let json = serde_json::to_string_pretty(&self.data)?;
         fs::write(self.catalog_path(), json)
-    }
-
-    fn create_empty_catalog(path: &Path) -> io::Result<()> {
-        let empty = GlobalCatalogData { databases: HashSet::new() };
-        let json = serde_json::to_string_pretty(&empty)?;
-        fs::write(path, json)?;
-        Ok(())
     }
 
     pub fn has_database(&self, name: &str) -> bool {

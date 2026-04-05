@@ -1,6 +1,6 @@
 use std::collections::HashMap;
-use std::fs;
-use std::path::PathBuf;
+use std::{fs, io};
+use std::path::{Path, PathBuf};
 use serde::{Serialize, Deserialize};
 use crate::compiler::ast::ColumnDef;
 use crate::types::{DbError, PageId};
@@ -32,39 +32,43 @@ struct CatalogData {
 }
 
 pub struct Catalog {
-    tables: HashMap<String, TableSchema>,
+    data: CatalogData,
     path: PathBuf,
 }
 
 impl Catalog {
 
     pub fn new(path: PathBuf) -> Self {
+        let data = Self::load_catalog(&path).unwrap_or_else(|_| {
+            CatalogData { tables: HashMap::new() }
+        });
+        
         Self {
-            tables: HashMap::new(),
+            data,
             path,
         }
     }
 
     pub fn has_table(&self, name: &str) -> bool {
-        self.tables.contains_key(name.to_uppercase().as_str())
+        self.data.tables.contains_key(name.to_uppercase().as_str())
     }
 
     pub fn add_table(&mut self, table_schema: TableSchema) -> Result<(), DbError> {
-        self.tables.insert(table_schema.name.to_uppercase(), table_schema);
+        self.data.tables.insert(table_schema.name.to_uppercase(), table_schema);
         self.save_catalog().map_err(|e| DbError::InternalError(e.to_string()))
     }
 
     pub fn remove_table(&mut self, table: &str) -> Result<(), DbError> {
-        self.tables.remove(&table.to_uppercase());
+        self.data.tables.remove(&table.to_uppercase());
         self.save_catalog().map_err(|e| DbError::InternalError(e.to_string()))
     }
 
     pub fn get_table_schema(&self, table: &str) -> Option<&TableSchema> {
-        self.tables.get(&table.to_uppercase())
+        self.data.tables.get(&table.to_uppercase())
     }
 
-    pub fn load_catalog(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let content = fs::read_to_string(&self.path)?;
+    fn load_catalog(path: &Path) -> io::Result<CatalogData> {
+        let content = fs::read_to_string(path)?;
         let mut data: CatalogData = serde_json::from_str(&content)?;
 
         // rebuild derived fields
@@ -72,13 +76,12 @@ impl Catalog {
             table.rebuild_column_index();
         }
 
-        self.tables = data.tables;
-        Ok(())
+        Ok(data)
     }
 
     pub fn save_catalog(&self) -> Result<(), Box<dyn std::error::Error>> {
         let data = CatalogData {
-            tables: self.tables.clone(),
+            tables: self.data.tables.clone(),
         };
 
         let json = serde_json::to_string_pretty(&data)?;
