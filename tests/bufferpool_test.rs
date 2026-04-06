@@ -154,61 +154,60 @@ fn test_capacity_constraint() {
     assert_eq!(pool.current_size(), capacity);
 }
 
-// TODO: To be investigated later
-// #[test]
-// fn test_concurrent_access_multiple_threads() {
-//     let (pool, _temp_file) = setup_buffer_pool(10);
-//     let num_threads = 4;
-//     let pages_per_thread = 3;
-//
-//     let mut handles = vec![];
-//
-//     for thread_id in 0..num_threads {
-//         let pool = Arc::clone(&pool);
-//
-//         handles.push(thread::spawn(move || {
-//             let mut page_ids = vec![];
-//             // Each thread creates and accesses pages
-//             for i in 0..pages_per_thread {
-//                 let page_id ;
-//                 with_create_pages!(pool, [(page_id, page)], (thread_id + i) % 2 == 0, {
-//                     page_ids.push(page_id);
-//                     thread::sleep(Duration::from_millis(5));
-//                 })
-//             }
-//
-//             // Try to access own pages again
-//             let pool = Arc::clone(&pool);
-//             for &page_id in &page_ids {
-//                 with_read_pages!(pool, [(page_id, _page)], {});
-//             }
-//
-//             page_ids
-//         }));
-//     }
-//
-//     // Collect all page IDs created
-//     let mut all_page_ids = vec![];
-//     for handle in handles {
-//         let page_ids = handle.join().unwrap();
-//         all_page_ids.extend(page_ids);
-//     }
-//
-//     // Verify pool is in consistent state (not over capacity)
-//     let current_size = pool.current_size();
-//     assert!(current_size <= 10, "Buffer pool should not exceed capacity");
-//
-//     // All pages should be accessible
-//     let mut accessible_count = 0;
-//     let pool = Arc::clone(&pool);
-//     for &page_id in &all_page_ids {
-//         with_read_pages!(pool, [(page_id, _page)], {
-//             accessible_count += 1;
-//         })
-//     }
-//
-//     assert_eq!(accessible_count, num_threads * pages_per_thread);
-// }
+#[test]
+fn test_concurrent_access_multiple_threads() {
+    let (pool, _temp_file) = setup_buffer_pool(10);
+    let num_threads = 4;
+    let pages_per_thread = 3;
+
+    let mut handles = vec![];
+
+    for thread_id in 0..num_threads {
+        let pool = Arc::clone(&pool);
+
+        handles.push(thread::spawn(move || {
+            let mut page_ids = vec![];
+            // Each thread creates and accesses pages
+            for i in 0..pages_per_thread {
+                let page_id ;
+                with_create_pages!(pool, [(page_id, page)], (thread_id + i) % 2 == 0, {
+                    page_ids.push(page_id);
+                    thread::sleep(Duration::from_millis(5));
+                })
+            }
+
+            // Try to access own pages again
+            let pool = Arc::clone(&pool);
+            for &page_id in &page_ids {
+                with_read_pages!(pool, [(page_id, _page)], {});
+            }
+
+            page_ids
+        }));
+    }
+
+    // Collect all page IDs created
+    let mut all_page_ids = vec![];
+    for handle in handles {
+        let page_ids = handle.join().unwrap();
+        all_page_ids.extend(page_ids);
+    }
+
+    // Verify pool is in consistent state (not over capacity)
+    let current_size = pool.current_size();
+    assert!(current_size <= 10, "Buffer pool should not exceed capacity");
+
+    // All pages should be accessible
+    let mut accessible_count = 0;
+    let pool = Arc::clone(&pool);
+    for &page_id in &all_page_ids {
+        with_read_pages!(pool, [(page_id, _page)], {
+            accessible_count += 1;
+        })
+    }
+
+    assert_eq!(accessible_count, num_threads * pages_per_thread);
+}
 
 #[test]
 fn test_pinned_page_protection() {
@@ -275,21 +274,16 @@ fn test_concurrent_access_same_page() {
 //     // tiny capacity to maximize churn
 //     let (pool, _tmp) = setup_buffer_pool(1);
 //
-//     // Start with one known page X
-//     let x = pool.create_page().unwrap();
-//     let xid = x.read().unwrap().page.get_id();
-//
-//     // Unpin X so it can be evicted
-//     pool.unpin_page(xid, false).unwrap();
+//     // Start with one known page
+//     let pid;
+//     with_create_pages!(pool, [(pid, page)], NO_FLUSH, {});
 //
 //     // Thread A: continuously creates pages to evict whatever is resident
 //     let pool_a = Arc::clone(&pool);
 //     let a = thread::spawn(move || {
 //         for _ in 0..50 {
-//             let p = pool_a.create_page().unwrap();
-//             let id = p.read().unwrap().page.get_id();
-//             // immediately unpin to let it be evicted by others
-//             let _ = pool_a.unpin_page(id, false);
+//             let pid_a;
+//             with_create_pages!(pool_a, [(pid_a, page_a)], NO_FLUSH, {});
 //             // short pause to interleave
 //             thread::sleep(Duration::from_millis(1));
 //         }
@@ -300,19 +294,14 @@ fn test_concurrent_access_same_page() {
 //     let pool_b = Arc::clone(&pool);
 //     let b = thread::spawn(move || {
 //         for _ in 0..50 {
-//             if let Ok(_px) = pool_b.fetch_page(xid) {
-//                 // hold briefly, then unpin (dirty randomly)
-//                 thread::sleep(Duration::from_millis(1));
-//                 let _ = pool_b.unpin_page(xid, true);
-//             }
+//             with_read_pages!(pool_b, [(pid, _page)], {});
 //         }
 //     });
 //
 //     a.join().unwrap();
 //     b.join().unwrap();
 //
-//     // Invariants: no panic; pool size never exceeds capacity; X is still fetchable at the end.
+//     // Invariants: no panic; pool size never exceeds capacity; initial pae is still fetchable at the end.
 //     assert!(pool.current_size() <= 1, "capacity must never be exceeded");
-//     assert!(pool.fetch_page(xid).is_ok(), "X should be fetchable after churn");
-//     pool.unpin_page(xid, false).unwrap();
+//     assert!(pool.fetch_page(pid).is_ok(), "page should be fetchable");
 // }

@@ -20,13 +20,12 @@ pub struct BufferFrame<P: Page> {
 pub struct PageGuard<P: Page> {
     pub frame: Arc<BufferFrame<P>>,
     pool: Arc<BufferPool<P>>,
-    is_dirty: bool,
 }
 
 impl<P: Page> PageGuard<P> {
     pub fn new(frame: Arc<BufferFrame<P>>, pool: Arc<BufferPool<P>>) -> PageGuard<P> {
         frame.pin_count.fetch_add(1, Ordering::SeqCst);
-        Self { frame, pool, is_dirty: false }
+        Self { frame, pool }
     }
 
     pub fn read(&self) -> std::sync::RwLockReadGuard<'_, P> {
@@ -34,7 +33,7 @@ impl<P: Page> PageGuard<P> {
     }
 
     pub fn write(&mut self) -> std::sync::RwLockWriteGuard<'_, P> {
-        self.is_dirty = true;
+        self.frame.is_dirty.store(true, Ordering::Release);
         self.frame.page.write().unwrap()
     }
 
@@ -42,16 +41,13 @@ impl<P: Page> PageGuard<P> {
 
 impl<P: Page> Drop for PageGuard<P> {
     fn drop(&mut self) {
-        // decrement pin count
-        self.frame.pin_count.fetch_sub(1, Ordering::SeqCst);
-        if self.is_dirty {
-            self.frame.is_dirty.store(true, Ordering::SeqCst);
-        }
-
-        // notify evict condvar if pin count hits zero
-        if self.frame.pin_count.load(Ordering::SeqCst) == 0 {
+        // decrement pin count and notify evict condvar if pin count hits zero
+        if self.frame.pin_count.fetch_sub(1, Ordering::Release) == 1 {
             let (lock, cv) = &self.pool.evict_cv;
-            let _g = lock.lock().unwrap();
+
+            // notify condvar that a page is unpinned
+            let mut unpinned_count = lock.lock().unwrap();
+            *unpinned_count += 1;
             cv.notify_one();
         }
     }
@@ -61,9 +57,9 @@ pub struct BufferPool<P: Page> {
     page_table: RwLock<HashMap<PageId, Arc<BufferFrame<P>>>>,
     capacity: usize,
     disk: Arc<dyn DiskManager<P>>,
-    strategy: RwLock<Box<dyn ReplacementStrategy>>,
+    strategy: Mutex<Box<dyn ReplacementStrategy>>,
     free_list: Arc<Mutex<FreeList>>,
-    evict_cv: (Mutex<()>, Condvar)  // condvar to notify an eviction is available
+    evict_cv: (Mutex<usize>, Condvar)  // condvar to notify an eviction is available
 }
 
 impl<P: Page + 'static> BufferPool<P> {
@@ -81,9 +77,9 @@ impl<P: Page + 'static> BufferPool<P> {
             page_table: RwLock::new(HashMap::new()),
             capacity,
             disk,
-            strategy: RwLock::new(strategy),
+            strategy: Mutex::new(strategy),
             free_list,
-            evict_cv: (Mutex::new(()), Condvar::new())
+            evict_cv: (Mutex::new(0), Condvar::new())
         }
     }
 
@@ -98,7 +94,7 @@ impl<P: Page + 'static> BufferPool<P> {
         {
             let frames = self.page_table.read().unwrap();
             if let Some(frame) = frames.get(&page_id) {
-                self.strategy.write().unwrap().update(page_id);
+                self.strategy.lock().unwrap().update(page_id);
                 return Ok(PageGuard::new(Arc::clone(frame), Arc::clone(self)));
             }
         }
@@ -112,28 +108,27 @@ impl<P: Page + 'static> BufferPool<P> {
                 let frames = self.page_table.read().unwrap();
                 frames.len() >= self.capacity
             };
-            if !need_evict {
-                break;
-            }
+            if !need_evict { break; }
             self.evict_one(); // will block until space is available
         }
 
+        let mut frames = self.page_table.write().unwrap();
+
+        // possible race condition: another thread may have inserted the same page meanwhile.
+        if let Some(existing) = frames.get(&page_id) {
+            self.strategy.lock().unwrap().update(page_id);
+            return Ok(PageGuard::new(Arc::clone(existing), Arc::clone(self)));
+        }
+
+        // allocate new buffer frame
         let frame = Arc::new(BufferFrame {
             page: RwLock::new(page),
             is_dirty: AtomicBool::new(false),
             pin_count: AtomicUsize::new(0),
         });
 
-        let mut frames = self.page_table.write().unwrap();
-
-        // possible race condition: another thread may have inserted the same page meanwhile.
-        if let Some(existing) = frames.get(&page_id) {
-            self.strategy.write().unwrap().update(page_id);
-            return Ok(PageGuard::new(Arc::clone(existing), Arc::clone(self)));
-        }
-
         frames.insert(page_id, Arc::clone(&frame));
-        self.strategy.write().unwrap().update(page_id);
+        self.strategy.lock().unwrap().update(page_id);
         Ok(PageGuard::new(frame, Arc::clone(self)))
     }
 
@@ -164,12 +159,12 @@ impl<P: Page + 'static> BufferPool<P> {
             let mut frames = self.page_table.write().unwrap();
             // page id should be unique, but if some logic reuses ids, guard anyway:
             if let Some(existing) = frames.get(&page_id) {
-                self.strategy.write().unwrap().update(page_id);
+                self.strategy.lock().unwrap().update(page_id);
                 return Ok(PageGuard::new(Arc::clone(existing), Arc::clone(self)));
             }
             frames.insert(page_id, Arc::clone(&frame));
         }
-        self.strategy.write().unwrap().update(page_id);
+        self.strategy.lock().unwrap().update(page_id);
         Ok(PageGuard::new(frame, Arc::clone(self)))
     }
 
@@ -201,23 +196,35 @@ impl<P: Page + 'static> BufferPool<P> {
             map.values().cloned().collect()
         };
         for frame in frames {
-            if frame.pin_count.load(Ordering::SeqCst) == 0 && frame.is_dirty.load(Ordering::SeqCst) {
+            if frame.is_dirty.swap(false, Ordering::SeqCst) {
                 let page = frame.page.read().unwrap();
                 self.disk.write_page(&page);
             }
         }
     }
+}
+
+impl<P: Page + 'static> BufferPool<P> {
 
     /// Evict one unpinned page using the replacement strategy.
     /// If the bufferpool is full and no page is available for eviction,
     /// evict_one will block until a page can be evicted
     fn evict_one(&self) {
+        let (lock, cv) = &self.evict_cv;
+
+        // acquire lock to condvar before loop
+        let mut unpinned_count = lock.lock().unwrap();
+
         loop {
+            while *unpinned_count == 0 {
+                unpinned_count = cv.wait(unpinned_count).unwrap();
+            }
+
             let mut evicted = false;
 
             // restrict strategy to inner scope so that we do not hold lock while waiting
             {
-                let mut strategy = self.strategy.write().unwrap();
+                let mut strategy = self.strategy.lock().unwrap();
                 let candidates = strategy.get_evict();
 
                 for evicted_id in candidates {
@@ -252,14 +259,10 @@ impl<P: Page + 'static> BufferPool<P> {
                     }
                 }
                 if evicted {
+                    *unpinned_count -= 1;
                     return;
                 }
             }
-
-            // if none were evictable, wait until unpin happens
-            let (lock, cv) = &self.evict_cv;
-            let g = lock.lock().unwrap();
-            let _g = cv.wait(g).unwrap();
         }
     }
 }
